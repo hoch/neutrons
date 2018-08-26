@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Biquad Filter</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Exp, Linear, OneFloat, ThreeFloats} from "./modules/mapping.js";
+        import {Analyser} from "./modules/analyser.js";
+        import {replaceElement, readAudio} from "./modules/standard.js";
+        import {gainToDb} from "./modules/neutrons.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {ParameterKnob} from "./modules/editors.js";
+
+        const context = Policy.newAudioContext();
+
+        const frequencyMapping = new Exp(20, 20000);
+        const qMapping = new Linear(-20.0, 20.0);
+        const gainMapping = new Linear(-20.0, 20.0);
+        const FILTERS = [
+            {type: "lowpass", frequency: frequencyMapping, Q: qMapping, gain: null},
+            {type: "highpass", frequency: frequencyMapping, Q: qMapping, gain: null},
+            {type: "bandpass", frequency: frequencyMapping, Q: qMapping, gain: null},
+            {type: "lowshelf", frequency: frequencyMapping, Q: null, gain: gainMapping},
+            {type: "highshelf", frequency: frequencyMapping, Q: null, gain: gainMapping},
+            {type: "peaking", frequency: frequencyMapping, Q: qMapping, gain: gainMapping},
+            {type: "notch", frequency: frequencyMapping, Q: qMapping, gain: null},
+        ];
+        const filter = context.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.value = 740.0;
+        filter.Q.value = 1.0;
+        filter.gain.value = 20.0;
+        const analyser = new Analyser(context, true);
+
+        const parameterFrequency = ParameterBuilder
+            .begin("Frequency")
+            .valueMapping(frequencyMapping)
+            .printMapping(OneFloat)
+            .value(filter.frequency.value)
+            .unit("hz")
+            .create();
+        const parameterQ = ParameterBuilder
+            .begin("Q")
+            .valueMapping(qMapping)
+            .printMapping(ThreeFloats)
+            .value(filter.Q.value)
+            .unit("")
+            .create();
+        const parameterGain = ParameterBuilder
+            .begin("Gain")
+            .valueMapping(gainMapping)
+            .printMapping(ThreeFloats)
+            .value(filter.gain.value)
+            .unit("")
+            .create();
+
+        const dbMapping = new Linear(-20.0, 20.0);
+        let frequencyHz = null, magResponse = null, phaseResponse = null;
+        analyser.overlayCallback = (canvas, graphics) => {
+            const width = canvas.width;
+            const height = canvas.height;
+            if (null === frequencyHz || frequencyHz.length !== width) {
+                frequencyHz = new Float32Array(width);
+                magResponse = new Float32Array(width);
+                phaseResponse = new Float32Array(width);
+                for (let i = 0; i < width; i++) {
+                    frequencyHz[i] = analyser.freqMapping.y(i / width);
+                }
+            }
+            const dbToY = (mag) => height - dbMapping.x(gainToDb(mag)) * height;
+            filter.frequency.value = parameterFrequency.value;
+            filter.Q.value = parameterQ.value;
+            filter.gain.value = parameterGain.value;
+            filter.getFrequencyResponse(frequencyHz, magResponse, phaseResponse);
+            graphics.strokeStyle = "white";
+            graphics.beginPath();
+            graphics.moveTo(0, dbToY(magResponse[0]));
+            for (let x = 1; x < width; x++) {
+                graphics.lineTo(x, dbToY(magResponse[x]));
+            }
+            graphics.stroke();
+        };
+        replaceElement(analyser.domElement, document.querySelector("div#spectrum"));
+        replaceElement(new ParameterKnob(parameterFrequency).domElement, document.querySelector("div#frequency"));
+        replaceElement(new ParameterKnob(parameterQ).domElement, document.querySelector("div#Q"));
+        replaceElement(new ParameterKnob(parameterGain).domElement, document.querySelector("div#gain"));
+        const appendRadioButton = (parent, name, id, labelText, checked) => {
+            const input = document.createElement("input");
+            input.setAttribute("type", "radio");
+            input.setAttribute("name", name);
+            input.setAttribute("id", id);
+            input.setAttribute("value", id);
+            if (checked) {
+                input.setAttribute("checked", "");
+            }
+            const label = document.createElement("label");
+            label.setAttribute("for", id);
+            label.textContent = labelText;
+            parent.appendChild(input);
+            parent.appendChild(label);
+        };
+        const form = document.querySelector("form#types");
+        for (let i = 0; i < FILTERS.length; i++) {
+            const flt = FILTERS[i];
+            appendRadioButton(form, "type", flt.type, flt.type.toUpperCase(), i === 0);
+        }
+        form.addEventListener("change", ignore => filter.type = form.type.value);
+
+        readAudio(context, "files/test-tones/whitenoisegaussian.wav").then(buffer => {
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.loop = true;
+            source.start();
+            source.connect(filter).connect(analyser.node).connect(context.destination);
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Biquad Filter</h2>
+</header>
+<article class="center">
+    <div style="display: grid; grid-template: 32px 256px / 72px 512px;">
+        <div></div>
+        <form style="display: flex; flex-direction: row;" id="types">
+        </form>
+        <div style="display: flex; flex-direction: column;">
+            <div id="frequency"></div>
+            <div id="Q"></div>
+            <div id="gain"></div>
+        </div>
+        <div id="spectrum"></div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

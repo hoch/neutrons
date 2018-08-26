@@ -37,10 +37,10 @@ export class Analyser {
         this.width = NaN;
         this.height = NaN;
         this.devicePixelRatio = NaN;
-
         this.values = new Float32Array(1024);
-
         this.spectrumMode = spectrumMode;
+
+        this.overlayCallback = (canvas, graphics) => {};
 
         this.start();
     }
@@ -143,6 +143,7 @@ export class Analyser {
             graphics.fillStyle = "rgba(40, 229, 255, 1.0)";
             ArrayPlotter.renderOversampled(graphics, values, 1, width, 0, height + 1, 0, node.frequencyBinCount, -1.0, 1.0);
         }
+        this.overlayCallback(canvas, graphics);
     }
 
     drawSpectrum(spectrum, path, width, height) {
@@ -202,10 +203,10 @@ export class Analyser {
                 this.width = this.root.clientWidth;
                 this.height = this.root.clientHeight;
                 this.devicePixelRatio = devicePixelRatio;
-                this.plotterCanvas.width = (this.root.clientWidth - 64) * devicePixelRatio;
-                this.plotterCanvas.height = (this.root.clientHeight - 64) * devicePixelRatio;
                 this.labelCanvas.width = this.root.clientWidth * devicePixelRatio;
                 this.labelCanvas.height = this.root.clientHeight * devicePixelRatio;
+                this.plotterCanvas.width = (this.root.clientWidth - 64) * devicePixelRatio;
+                this.plotterCanvas.height = (this.root.clientHeight - 64) * devicePixelRatio;
                 this.drawLabels();
             }
             this.update();

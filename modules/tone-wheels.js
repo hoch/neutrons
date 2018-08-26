@@ -63,7 +63,7 @@ export class ToneWheels {
 
         this.canvas = document.createElement("canvas");
         this.canvas.style.width = "100%";
-        this.canvas.style.height = "100%";
+        this.canvas.style.height = "80%";
         this.graphics = this.canvas.getContext("2d");
         this.initEvents();
     }
@@ -165,7 +165,7 @@ export class ToneWheels {
             const y = event.clientY - rect.y - rect.height * 0.5;
             target.x = tx + (x - mx);
             target.y = ty + (y - my);
-        }, event => {
+        }, ignore => {
             target = null;
         });
     }
