@@ -144,6 +144,12 @@ export class RMS {
         if (++this.index === this.n) this.index = 0;
         return 0.0 >= this.sum ? 0.0 : Math.sqrt(this.sum * this.inv);
     }
+
+    clear() {
+        this.values.fill(0.0);
+        this.sum = 0.0;
+        this.index = 0 | 0;
+    }
 }
 
 export class Random {

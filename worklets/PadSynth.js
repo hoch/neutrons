@@ -7,7 +7,6 @@ import {
     Exp,
     NoFloat,
     OneFloat,
-    TwoFloats,
     Level,
     BipolarPercent,
     Cents
@@ -360,7 +359,7 @@ export class PadSynth extends AbstractPolyphonicSynth {
             this.waiting = true;
             return;
         }
-        const now = performance.now();
+        // const now = performance.now();
         this.computation = this.worker.update(sound.harmonics)
             .then(tables => {
                 // console.log(action, "tables computed in", performance.now() - now, "ms");

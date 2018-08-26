@@ -11,7 +11,7 @@
     - Delayed Reverb
     + Impulse selector
 - Convolution
-+ Biquad Graphical EQ
+- Biquad Graphical EQ
 + VoiceFreezer
     + Capture multiple periods and create a PeriodicWave (simple)
     + Also create a large pad by adding voices to chords (many voices)

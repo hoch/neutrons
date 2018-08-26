@@ -14,15 +14,18 @@
 
         const context = Policy.newAudioContext();
 
-        readAudio(context, "files/loops/dnb.ogg").then(buffer => {
+        readAudio(context, "files/aaaa.wav").then(buffer => {
             const frames = buffer.getChannelData(0);
-            const windowSize = 8192;
+            const padSize = 1 << 18;
+            const windowSize = 1 << 13;
+            const ratio = padSize / (windowSize / 2) | 0;
+            console.log("ratio", ratio);
             const window = Windows.generate(Windows.Blackman, windowSize);
             const fft = new FFT(windowSize);
             const imag = new Float32Array(windowSize);
             let sum = new Float32Array(windowSize / 2);
 
-            for (let i = 2; i < frames.length - windowSize; i += windowSize) {
+            for (let i = 0; i < frames.length - windowSize; i += windowSize) {
                 const real = frames.slice(i, i + windowSize);
                 for (let j = 0; j < windowSize; j++) {
                     real[j] *= window[j];
@@ -31,7 +34,7 @@
                 fft.process(real, imag);
                 for (let j = 0; j < windowSize / 2; j++) {
                     // options: max or sum
-                    sum[j] = Math.max(sum[j], Math.sqrt(real[j] * real[j] + imag[j] * imag[j]) );
+                    sum[j] = Math.max(sum[j], Math.sqrt(real[j] * real[j] + imag[j] * imag[j]));
                 }
             }
             normalise(sum);
@@ -53,17 +56,16 @@
             console.log("numBins", sum.length);
             const harmonics = [];
             for (let i = 1; i < sum.length; i++) {
-                const position = i / 64;
+                const position = i / ratio;
                 harmonics.push(new Harmonic(position, sum[i], 0.01));
             }
             console.log(harmonics);
 
             const context = new AudioContext();
-            const fftSize = 1 << 18;
             const worker = new Worker("./workers/pad.js");
             worker.postMessage({
                 action: "init",
-                value: {fftSize: fftSize, sampleRate: context.sampleRate, frequencies: [380]}
+                value: {fftSize: padSize, sampleRate: context.sampleRate, frequencies: [380]}
             });
             worker.onmessage = event => {
                 const tables = event.data;
@@ -81,20 +83,6 @@
                 value: harmonics
             });
         });
-        /*import {decodeAudioData} from "./modules/standard.js";
-
-        const context = new AudioContext();
-        const fileInput = document.querySelector("input[type=file]");
-        fileInput.addEventListener("change", event => {
-            const files = event.target.files;
-            const file = files[0];
-            const reader = new FileReader();
-            reader.onload = ignore => {
-                decodeAudioData(context, reader.result)
-                    .then(buffer => console.log(buffer));
-            };
-            reader.readAsArrayBuffer(file);
-        });*/
     </script>
 </head>
 <body>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pitch Detection</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Block} from "./worklets/Block.js";
+        import {fetchMicrophone, replaceElement} from "./modules/standard.js";
+        import {midiToFrequency, goertzel, RMS, gainToDb} from "./modules/neutrons.js";
+        import {PianoRoll} from "./modules/piano-roll.js";
+
+        const context = Policy.newAudioContext();
+        const pianoRoll = new PianoRoll(2);
+        replaceElement(pianoRoll.domElement, document.querySelector("div#piano-roll"));
+        Promise.all([
+            fetchMicrophone(),
+            context.audioWorklet.addModule("worklets/BlockProcessor.js")
+        ]).then(results => {
+            const osc = context.createOscillator();
+            osc.type = "triangle";
+            const gainNode = context.createGain();
+            gainNode.gain.value = 0.0;
+            osc.start();
+            osc.connect(gainNode).connect(context.destination);
+
+            const microphone = context.createMediaStreamSource(results[0]);
+            const block = new Block(context);
+            const minNote = 48;
+            const maxNote = 96;
+            const numNotes = maxNote - minNote + 1;
+            const threshold = -18.0;
+            const windowSize = 4096;
+            const values = new Float32Array(numNotes);
+            const rms = new RMS(windowSize);
+            block.n(windowSize);
+            let lastIndex = -1;
+            console.log("minNote", midiToFrequency(minNote, 440.0), "hz");
+            console.log("maxNote", midiToFrequency(maxNote, 440.0), "hz");
+            block.port.onmessage = event => {
+                const signal = event.data;
+                let maxRms = 0.0;
+                rms.clear();
+                for (let i = 0; i < windowSize; i++) {
+                    maxRms = Math.max(rms.pushPop(signal[i] * signal[i]), maxRms);
+                }
+                let maxIndex = -1;
+                let maxValue = 0.0;
+                for (let index = 0; index < numNotes; index++) {
+                    const value = values[index] = goertzel(signal, midiToFrequency(minNote + index, 440.0), context.sampleRate, 0, windowSize);
+                    if (maxValue < value) {
+                        maxIndex = index;
+                        maxValue = value;
+                    }
+                }
+                if (-1 !== lastIndex) {
+                    const note = minNote + lastIndex;
+                    pianoRoll.release(note);
+                    lastIndex = -1;
+                }
+                const db = gainToDb(maxRms);
+                if (db > threshold && -1 < maxIndex) {
+                    const note = minNote + maxIndex;
+                    pianoRoll.press(note);
+                    const upper = values[maxIndex + 1];
+                    const lower = values[maxIndex - 1];
+                    console.log(upper - lower);
+                    osc.frequency.value = midiToFrequency(note, 440.0);
+                    gainNode.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.010);
+                    lastIndex = maxIndex;
+                } else {
+                    gainNode.gain.linearRampToValueAtTime(0.0, context.currentTime + 0.010);
+                }
+            };
+            microphone.connect(block).connect(context.destination);
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Pitch Detection</h2>
+</header>
+<article class="center">
+    <div id="piano-roll"></div>
+</article>
+<footer></footer>
+</body>
+</html>
