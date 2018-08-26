@@ -14,4 +14,6 @@ Includes
 * Simple waveform / spectrum viewer
 * Ready to use effect-chains (echo, stereo-delay with filter)
 * Many examples (fully-fletched pad-synth, emulated guitar, kick-factory, ...)
+* Values plotter
+* Policy util for mandatory user-interaction (play audio, resume AudioContext)
 * All slides of my presentation at [Reasons.to 2018](https://reasons.to/2018/brighton/speakers/andre-michelle)

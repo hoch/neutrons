@@ -9,24 +9,36 @@
         import {Policy} from "./modules/policy.js";
         import {Exp, Linear, OneFloat, ThreeFloats} from "./modules/mapping.js";
         import {Analyser} from "./modules/analyser.js";
-        import {replaceElement, readAudio} from "./modules/standard.js";
+        import {readAudio, replaceElement} from "./modules/standard.js";
         import {gainToDb} from "./modules/neutrons.js";
         import {ParameterBuilder} from "./modules/parameter.js";
         import {ParameterKnob} from "./modules/editors.js";
 
         const context = Policy.newAudioContext();
 
-        const frequencyMapping = new Exp(20, 20000);
+        // TODO
+        // introduce default value on switch
+        // notch cannot process negative/zero Q
+
+        const freqMapping = new Exp(20, 20000);
         const qMapping = new Linear(-20.0, 20.0);
         const gainMapping = new Linear(-20.0, 20.0);
+        const qExp = new Exp(0.1, 20.0);
         const FILTERS = [
-            {type: "lowpass", frequency: frequencyMapping, Q: qMapping, gain: null},
-            {type: "highpass", frequency: frequencyMapping, Q: qMapping, gain: null},
-            {type: "bandpass", frequency: frequencyMapping, Q: qMapping, gain: null},
-            {type: "lowshelf", frequency: frequencyMapping, Q: null, gain: gainMapping},
-            {type: "highshelf", frequency: frequencyMapping, Q: null, gain: gainMapping},
-            {type: "peaking", frequency: frequencyMapping, Q: qMapping, gain: gainMapping},
-            {type: "notch", frequency: frequencyMapping, Q: qMapping, gain: null},
+            {type: "lowpass", freqMapping: freqMapping, freq: 20000.0, qMapping: qMapping, q: -3.0, gain: NaN},
+            {type: "highpass", freqMapping: freqMapping, freq: 20.0, qMapping: qMapping, q: -3.0, gain: NaN},
+            {type: "bandpass", freqMapping: freqMapping, freq: 740.0, qMapping: qExp, q: 4.0, gain: NaN},
+            {type: "lowshelf", freqMapping: freqMapping, freq: 740.0, qMapping: null, q: NaN, gain: gainMapping.y(0.0)},
+            {
+                type: "highshelf",
+                freqMapping: freqMapping,
+                freq: 740.0,
+                qMapping: null,
+                q: NaN,
+                gain: gainMapping.y(0.0)
+            },
+            {type: "peaking", freqMapping: freqMapping, freq: 740.0, qMapping: qExp, q: 1.0, gain: gainMapping.y(1.0)},
+            {type: "notch", freqMapping: freqMapping, freq: 740.0, qMapping: qExp, q: 1.0, gain: NaN},
         ];
         const filter = context.createBiquadFilter();
         filter.type = "lowpass";
@@ -35,9 +47,9 @@
         filter.gain.value = 20.0;
         const analyser = new Analyser(context, true);
 
-        const parameterFrequency = ParameterBuilder
+        const parameterFreq = ParameterBuilder
             .begin("Frequency")
-            .valueMapping(frequencyMapping)
+            .valueMapping(freqMapping)
             .printMapping(OneFloat)
             .value(filter.frequency.value)
             .unit("hz")
@@ -71,7 +83,7 @@
                 }
             }
             const dbToY = (mag) => height - dbMapping.x(gainToDb(mag)) * height;
-            filter.frequency.value = parameterFrequency.value;
+            filter.frequency.value = parameterFreq.value;
             filter.Q.value = parameterQ.value;
             filter.gain.value = parameterGain.value;
             filter.getFrequencyResponse(frequencyHz, magResponse, phaseResponse);
@@ -83,10 +95,13 @@
             }
             graphics.stroke();
         };
+        const knobFrequency = new ParameterKnob(parameterFreq).domElement;
+        const knobQ = new ParameterKnob(parameterQ).domElement;
+        const knobGain = new ParameterKnob(parameterGain).domElement;
+        replaceElement(knobFrequency, document.querySelector("div#frequency"));
+        replaceElement(knobQ, document.querySelector("div#Q"));
+        replaceElement(knobGain, document.querySelector("div#gain"));
         replaceElement(analyser.domElement, document.querySelector("div#spectrum"));
-        replaceElement(new ParameterKnob(parameterFrequency).domElement, document.querySelector("div#frequency"));
-        replaceElement(new ParameterKnob(parameterQ).domElement, document.querySelector("div#Q"));
-        replaceElement(new ParameterKnob(parameterGain).domElement, document.querySelector("div#gain"));
         const appendRadioButton = (parent, name, id, labelText, checked) => {
             const input = document.createElement("input");
             input.setAttribute("type", "radio");
@@ -107,15 +122,39 @@
             const flt = FILTERS[i];
             appendRadioButton(form, "type", flt.type, flt.type.toUpperCase(), i === 0);
         }
-        form.addEventListener("change", ignore => filter.type = form.type.value);
 
-        readAudio(context, "files/test-tones/whitenoisegaussian.wav").then(buffer => {
-            const source = context.createBufferSource();
-            source.buffer = buffer;
-            source.loop = true;
-            source.start();
-            source.connect(filter).connect(analyser.node).connect(context.destination);
-        });
+        const setType = (type) => {
+            const filterSpecs = FILTERS.filter(filter => filter.type === type)[0];
+            filter.type = type;
+            if (filterSpecs.qMapping) {
+                parameterQ.valueMapping = filterSpecs.qMapping;
+            }
+            if (isNaN(filterSpecs.q)) {
+                knobQ.style.opacity = "0.2";
+            } else {
+                parameterQ.value = filterSpecs.q;
+                knobQ.style.opacity = "1.0";
+            }
+            if (isNaN(filterSpecs.gain)) {
+                knobGain.style.opacity = "0.2";
+            } else {
+                parameterGain.value = filterSpecs.gain;
+                knobGain.style.opacity = "1.0";
+            }
+            parameterFreq.value = filterSpecs.freq;
+        };
+
+        form.addEventListener("change", ignore => setType(form.type.value));
+        setType("lowpass");
+
+        const audio = new Audio();
+        audio.setAttribute("crossorigin", "");
+        audio.src = "https://api.audiotool.com/track/jkpxib1d9dag/play.ogg";
+        Policy.playAudio(audio)
+            .then(() => context.createMediaElementSource(audio)
+                .connect(filter)
+                .connect(analyser.node)
+                .connect(context.destination));
     </script>
 </head>
 <body>
@@ -124,7 +163,7 @@
     <h2>Biquad Filter</h2>
 </header>
 <article class="center">
-    <div style="display: grid; grid-template: 32px 256px / 72px 512px;">
+    <div style="display: grid; grid-template: 40px 256px / 80px 512px;">
         <div></div>
         <form style="display: flex; flex-direction: row;" id="types">
         </form>

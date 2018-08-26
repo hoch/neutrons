@@ -31,9 +31,11 @@ export const pulsarDelay = (context, input, output, bpm) => {
     const feedbackLowpass = context.createBiquadFilter();
     feedbackLowpass.type = "lowpass";
     feedbackLowpass.frequency.value = 8000.0;
+    feedbackLowpass.Q.value = -3.0;
     const feedbackHighpass = context.createBiquadFilter();
     feedbackHighpass.type = "highpass";
     feedbackHighpass.frequency.value = 600.0;
+    feedbackHighpass.Q.value = -3.0;
     const feedbackDelay = context.createDelay();
     feedbackDelay.delayTime.value = barsToSeconds(1.0 / 16.0, bpm);
     const feedbackGain = context.createGain();

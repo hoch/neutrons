@@ -12,7 +12,8 @@ export class Analyser {
         this.root = document.createElement("div");
         this.root.style.width = "512px";
         this.root.style.height = "256px";
-        this.root.style.backgroundColor = "#333";
+        this.root.style.backgroundColor = "#202020";
+        this.root.style.borderRadius = "1px";
         this.root.style.position = "relative";
         this.root.style.boxSizing = "border-box";
 

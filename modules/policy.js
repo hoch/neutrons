@@ -2,25 +2,18 @@ export class Policy {
     static newAudioContext() {
         const context = new AudioContext();
         if (context.state === "suspended") {
-            const div = document.createElement("div");
-            const ondown = ignore => {
-                context.resume().then(_ => {
-                    div.remove();
-                    window.removeEventListener("mousedown", ondown);
-                });
-            };
-            const onload = ignore => {
-                div.className = "policy";
-                div.textContent =
-                    "Playback has been disabled by your browser. " +
-                    "Please click anywhere to resume.";
-                document.body.appendChild(div);
-                window.removeEventListener("load", onload);
-                window.addEventListener("mousedown", ondown);
-            };
-            window.addEventListener("load", onload);
+            this.waitForUserInteraction(
+                "Playback has been disabled by your browser. " +
+                "Please click anywhere to resume.")
+                .then(() => context.resume());
         }
         return context;
+    }
+
+    static playAudio(audio) {
+        return audio.play()
+            .catch(ignore => this.waitForUserInteraction("Click to Play Audio...")
+                .then(() => this.playAudio(audio)));
     }
 
     static waitForUserInteraction(message) {
