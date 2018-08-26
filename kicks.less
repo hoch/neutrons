@@ -1,0 +1,24 @@
+.layout {
+  width: 100%;
+  display: grid;
+  grid-template: 40px 512px 88px / auto;
+  grid-gap: 1px;
+  & .row {
+    display: flex;
+    align-items: center;
+  }
+  & .group {
+    border-radius: 2px;
+    background: rgb(30,30,30);
+    height: 100%;
+    display: flex;
+    padding: 0 8px;
+    align-items: center;
+    &:not(:first-child) {
+      margin-left: 1px;
+    }
+    &.fill {
+      flex: 1;
+    }
+  }
+}

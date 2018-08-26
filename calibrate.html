@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IO Calibration</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+
+        const context = Policy.newAudioContext();
+        Promise.all([
+            context.audioWorklet.addModule("./worklets/CalibrationProcessor.js")
+        ]).then(_ => {
+            const node = new AudioWorkletNode(context, "calibration", {
+                numberOfInputs: 1,
+                numberOfOutputs: 1,
+                outputChannelCount: [1],
+                channelCount: 1,
+                channelCountMode: "explicit",
+                channelInterpretation: "speakers"
+            });
+            const sampleRate = context.sampleRate;
+            const duration = 0.05;
+            const numFrames = (duration * sampleRate) | 0;
+            const offline = new OfflineAudioContext(1, numFrames, sampleRate);
+            const osc = offline.createOscillator();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(6000.0, 0.0);
+            osc.frequency.exponentialRampToValueAtTime(1200.0, duration);
+            osc.start();
+            osc.connect(offline.destination);
+            offline.startRendering().then(buffer => {
+                const sound = new Float32Array(numFrames);
+                sound[0] = -1;
+                sound[1] = 1;
+                // buffer.copyFromChannel(sound, 0, 0);
+                const output = document.querySelector("div");
+                node.port.onmessage = event => {
+                    const data = event.data;
+                    switch(data.action) {
+                        case "detect-peak": {
+                            output.textContent = data.value.toFixed(1) + "ms";
+                            break;
+                        }
+                    }
+                };
+                node.port.postMessage({action: "set-sound", value: sound});
+
+                navigator.getUserMedia({audio: true},
+                    stream => {
+                        context
+                            .createMediaStreamSource(stream)
+                            .connect(node)
+                            .connect(context.destination);
+
+                        // const button = document.createElement("button");
+                        // button.textContent = "Calibrate";
+                        // button.onmousedown = ignore => node.port.postMessage({action: "play-sound"});
+                        // document.body.appendChild(button);
+                        setInterval(ignore => {
+                            node.port.postMessage({action: "play-sound"});
+                        }, 500);
+                    },
+                    error => console.log(error));
+            });
+        });
+    </script>
+</head>
+<body>
+<div></div>
+</body>
+</html>

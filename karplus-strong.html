@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Karplus Strong</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {KarplusStrong} from "./worklets/KarplusStrong.js";
+        import {Fragmentation, Sequencer, Midi, GrooveShuffle} from "./modules/sequencing.js";
+        import {StereoMeter} from "./worklets/StereoMeter.js";
+        import {replaceElement, readAudio, saveFile, encode32} from "./modules/standard.js";
+        import {ParameterField} from "./modules/editors.js";
+        import {GuitarTab, GuitarTabView} from "./modules/guitar-tab.js";
+        import {PadSynth, PadWorker} from "./worklets/PadSynth.js";
+
+        const TAB = GuitarTab.TABS;
+        const guitarTab = new GuitarTabView();
+
+        const STROKES = new Int32Array([
+            1, 0, 4, 0, 0, 2, 1, 2,
+            1, 0, 4, 0, 0, 2, 1, 2,
+            1, 0, 4, 0, 0, 2, 1, 2,
+            1, 0, 4, 0, 0, 2, 1, 2,
+            1, 0, 4, 0, 0, 2, 1, 2,
+            1, 0, 4, 0, 0, 2, 1, 2,
+            1, 0, 4, 0, 0, 2, 1, 2,
+            1, 0, 1, 2, 0, 1, 2, 1,
+        ]);
+
+        const tabSequence = [TAB.C, TAB.C, TAB.G, TAB.G, TAB.Em, TAB.Em, TAB.Am, TAB.Am];
+        replaceElement(guitarTab.domElement, document.querySelector("div#guitar-tab"));
+        guitarTab.domElement.style.width = "416px";
+        guitarTab.domElement.style.height = "448px";
+        guitarTab.show(tabSequence[0]);
+
+        const context = Policy.newAudioContext();
+        Promise.all([
+            readAudio(context, "files/loops/rock-drum-loop.ogg"),
+            context.audioWorklet.addModule("./worklets/StereoMeterProcessor.js"),
+            context.audioWorklet.addModule("./worklets/KarplusStrongProcessor.js"),
+            context.audioWorklet.addModule("./worklets/PadSynthProcessor.js"),
+            /*GuitarTab.more()*/
+        ]).then(results => {
+            const loopBuffer = results[0];
+
+            const synth = new PadSynth(context, new PadWorker(16, context.sampleRate, 60.0));
+            const guitar = new KarplusStrong(context);
+            const meter = new StereoMeter(context);
+            const master = context.createGain();
+            master.gain.value = 0.707;
+            guitar.connect(master).connect(meter).connect(context.destination);
+            synth.connect(context.destination);
+            window.addEventListener("keydown", event => {
+                const string = event.keyCode - 49;
+                if (0 <= string && string < 6) {
+                    guitar.play(context.currentTime, string, 0);
+                }
+            });
+            let down = true;
+            let drums = false;
+            let blocks = false;
+            const sequencer = new Sequencer(() => context.currentTime * 1000.0);
+            const groove = new GrooveShuffle();
+            const guitarFragmentation = new Fragmentation((computeStartMillis, stepIndex, position) => {
+                const seconds = computeStartMillis(position) / 1000.0;
+                const strokeIndex = stepIndex % STROKES.length;
+                const chordIndex = Math.floor(stepIndex / 8) % tabSequence.length;
+                const stroke = STROKES[strokeIndex];
+                if (0 !== stroke) {
+                    const down = 1 === (stroke & 1);
+                    const block = 4 === (stroke & 4);
+                    const tapTime = blocks && block ? (computeStartMillis(position + 1.0 / 8.0) + 10.0) / 1000.0 : 0.0;
+                    const tab = tabSequence[chordIndex];
+                    guitar.playTab(seconds, tab.tabs, down, 0.02, tapTime);
+                    guitarTab.show(tab);
+                }
+                down = !down;
+            }, 1.0 / 16.0);
+            const drumsFragmentation = new Fragmentation((computeStartMillis, stepIndex, position) => {
+                const seconds = computeStartMillis(position) / 1000.0;
+                if (drums) {
+                    const bufferSource = context.createBufferSource();
+                    bufferSource.buffer = loopBuffer;
+                    bufferSource.start(seconds);
+                    bufferSource.connect(master);
+                }
+            }, 4.0);
+            guitarFragmentation.groove = groove;
+            sequencer.addProcessor((sequencer, t0, t1) => drumsFragmentation.equalise(sequencer, t0, t1));
+            sequencer.addProcessor((sequencer, t0, t1) => guitarFragmentation.equalise(sequencer, t0, t1), -10.0);
+            sequencer.bpm.value = 90.0;
+
+            document.querySelector("input#play").onchange = event =>
+                sequencer.playMode(event.target.checked);
+            document.querySelector("input#body").onchange = event =>
+                guitar.body(event.target.checked);
+            document.querySelector("input#drums").onchange = event =>
+                drums = event.target.checked;
+            document.querySelector("input#blocks").onchange = event =>
+                blocks = event.target.checked;
+            replaceElement(new ParameterField(groove.impact).domElement, document.querySelector("div#groove-impact"));
+            const meterElement = meter.domElement;
+            meterElement.style.position = "absolute";
+            meterElement.style.top = "128px";
+            meterElement.style.right = "48px";
+            document.body.appendChild(meterElement);
+
+            Midi.request().then(midi => {
+                const events = Midi.mapAllEvents(midi);
+                events.onNoteOn = (note, velocity) => synth.noteOn(note, velocity);
+                events.onNoteOff = (note) => synth.noteOff(note);
+            });
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Karplus Strong</h2>
+</header>
+<article class="center">
+    <div>
+        <div style="display: flex; height: 32px; align-items: center; margin-bottom: 16px;">
+            <input type="checkbox" id="play">
+            <label for="play">Play</label>
+            <input type="checkbox" id="body">
+            <label for="body">Emulate Body</label>
+            <input type="checkbox" id="blocks">
+            <label for="blocks">Enable Blocks</label>
+            <input type="checkbox" id="drums">
+            <label for="drums">Add Drums</label>
+            <div id="groove-impact"></div>
+        </div>
+        <div id="guitar-tab"></div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

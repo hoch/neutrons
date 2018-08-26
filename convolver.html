@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Convolver Node</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="convolver.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {fetchMicrophone, readAudio} from "./modules/standard.js";
+        const impulses = [
+            "files/impulse/spaces/Church.wav",
+            "files/impulse/spaces/Deep Space.wav",
+            "files/impulse/spaces/Hangar.wav",
+            "files/impulse/spaces/Large Wide Echo Hall.wav",
+            "files/impulse/spaces/PlateLarge.wav",
+            "files/impulse/spaces/PlateMedium.wav",
+            "files/impulse/spaces/PlateSmall.wav",
+            "files/impulse/spaces/PlateLong.wav",
+            "files/impulse/spaces/PrimeLong.wav",
+        ];
+        const context = Policy.newAudioContext();
+        const convolver = context.createConvolver();
+        const loadImpulse = (url) => {
+            readAudio(context, url)
+                .then(buffer => convolver.buffer = buffer);
+        };
+        const createButton = (name) => {
+            const element = document.createElement("div");
+            element.className = "impulse";
+            element.textContent = name;
+            return element;
+        };
+        fetchMicrophone()
+            .then(stream => {
+                const wetSignal = context.createGain();
+                wetSignal.gain.value = 0.5;
+                const sourceNode = context.createMediaStreamSource(stream);
+                sourceNode
+                    .connect(wetSignal)
+                    .connect(convolver)
+                    .connect(context.destination);
+                sourceNode
+                    .connect(context.destination);
+                let last = null;
+                const list = document.querySelector("div.impulses");
+                for (let i = 0; i < impulses.length; i++) {
+                    const url = impulses[i];
+                    const button = createButton(url.substring(url.lastIndexOf("/") + 1, url.lastIndexOf(".wav")));
+                    button.onclick = ignore => {
+                        if (null !== last) {
+                            last.classList.remove("active");
+                        }
+                        last = button;
+                        button.classList.add("active");
+                        loadImpulse(impulses[i]);
+                    };
+                    list.appendChild(button);
+                }
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Convolver Node</h2>
+</header>
+<article class="center">
+    <div class="impulses"></div>
+</article>
+<footer></footer>
+</body>
+</html>

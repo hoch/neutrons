@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Midi Arpeggio</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {
+            Midi,
+            MidiData,
+            Sequencer,
+            Fragmentation,
+            GrooveShuffle,
+            Arpeggio,
+            EventRetainer
+        } from "./modules/sequencing.js";
+        import {PianoRoll} from "./modules/piano-roll.js";
+        import {replaceElement} from "./modules/standard.js";
+        import {ParameterField} from "./modules/editors.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+
+        Midi.request()
+            .then(midi => {
+                Midi.installPanic(midi);
+                const output = midi.outputs.get("1752208568");
+                if (output === undefined) {
+                    alert("Could not found 'Pro14 MIDI device'!");
+                    return;
+                }
+                const pianoRoll = new PianoRoll(4);
+                replaceElement(pianoRoll.domElement, document.querySelector("div#piano-roll"));
+                const arpeggio = new Arpeggio();
+                const events = Midi.mapAllEvents(midi);
+                events.onNoteOn = (note, velocity) => {
+                    arpeggio.noteOn(note, velocity);
+                };
+                events.onNoteOff = (note) => {
+                    arpeggio.noteOff(note);
+                };
+                const stepSize = 1.0 / 16.0;
+                const length = ParameterBuilder.begin("Length").value(1.0).create();
+                const sequencer = new Sequencer();
+                const eventRetainer = new EventRetainer();
+                const fragmentation = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
+                    const millis = computeStartMillis(position);
+                    const event = arpeggio.eventFor(stepIndex);
+                    if (event !== null) {
+                        pianoRoll.press(event.note);
+                        eventRetainer.push(event, position + length.value * (complete - position));
+                        output.send(MidiData.noteOn(0, event.note, event.velocity * 127.0), millis);
+                    }
+                }, stepSize);
+                const groove = new GrooveShuffle();
+                fragmentation.groove = groove;
+                sequencer.addProcessor((computeStartMillis, t0, t1) => {
+                    const completed = eventRetainer.getCompleted(t1);
+                    for (let complete of completed) {
+                        const time = complete[0];
+                        const event = complete[1];
+                        const millis = computeStartMillis(time);
+                        output.send(MidiData.noteOff(0, event.note), millis);
+                        pianoRoll.release(event.note);
+                    }
+                    fragmentation.equalise(computeStartMillis, t0, t1);
+                });
+                sequencer.start();
+
+                replaceElement(new ParameterField(sequencer.bpm).domElement, document.querySelector("div#bpm"));
+                replaceElement(new ParameterField(arpeggio.octaves).domElement, document.querySelector("div#octaves"));
+                replaceElement(new ParameterField(arpeggio.mode).domElement, document.querySelector("div#mode"));
+                replaceElement(new ParameterField(length).domElement, document.querySelector("div#length"));
+                replaceElement(new ParameterField(groove.impact).domElement, document.querySelector("div#shuffle"));
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Midi Arpeggio</h2>
+</header>
+<article class="center">
+    <div>
+        <div id="piano-roll"></div>
+        <div>
+            <div id="bpm"></div>
+            <div id="octaves"></div>
+            <div id="mode"></div>
+            <div id="length"></div>
+            <div id="shuffle"></div>
+        </div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

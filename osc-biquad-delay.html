@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Filter + Delay</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Exp} from "./modules/mapping.js";
+        import {clamp} from "./modules/standard.js";
+        import {ArrayPlotter} from "./modules/plotter.js";
+        import {echo} from "./modules/effects.js";
+
+        const context = Policy.newAudioContext();
+        const analyserNode = context.createAnalyser();
+        const oscillatorNode = context.createOscillator();
+        const biquadFilterNode = context.createBiquadFilter();
+        biquadFilterNode.type = "lowpass";
+        oscillatorNode.type = "square";
+        oscillatorNode.start();
+        const gainNode = context.createGain();
+        gainNode.gain.value = 0.0;
+        oscillatorNode.connect(biquadFilterNode).connect(gainNode).connect(analyserNode);
+        echo(context, gainNode, analyserNode, 0.5, 0.5, 0.5);
+        analyserNode.connect(context.destination);
+        const getEndTime = () => {
+            return context.currentTime + 0.004; // interpolation time
+        };
+        const canvas = document.querySelector("canvas#stage");
+        const rect = canvas.getBoundingClientRect();
+        const oscMapping = new Exp(10, 1000);
+        const biquadMapping = new Exp(10, 18000);
+        let point = null;
+        const handleMouseEvent = (event) => {
+            const px = event.clientX - rect.x;
+            const py = event.clientY - rect.y;
+            const nx = clamp(0.0, 1.0, px / rect.width);
+            const ny = clamp(0.0, 1.0, py / rect.height);
+            const endTime = getEndTime();
+            oscillatorNode.frequency.exponentialRampToValueAtTime(oscMapping.y(nx), endTime);
+            biquadFilterNode.frequency.exponentialRampToValueAtTime(biquadMapping.y(1.0 - ny), endTime);
+            point = {x: px, y: py};
+        };
+        const mouseMove = event => {
+            handleMouseEvent(event);
+        };
+        const mouseUp = ignore => {
+            point = null;
+            window.removeEventListener("mousemove", mouseMove);
+            window.removeEventListener("mouseup", mouseUp);
+            gainNode.gain.linearRampToValueAtTime(0.0, getEndTime());
+        };
+        canvas.addEventListener("mousedown", event => {
+            window.addEventListener("mousemove", mouseMove);
+            window.addEventListener("mouseup", mouseUp);
+            gainNode.gain.linearRampToValueAtTime(0.5, getEndTime());
+            handleMouseEvent(event);
+        });
+        const values = new Float32Array(analyserNode.fftSize);
+        const graphics = canvas.getContext("2d");
+        const run = () => {
+            if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+                canvas.height = canvas.clientHeight;
+                canvas.width = canvas.clientWidth;
+            }
+            const w = canvas.width;
+            const h = canvas.height;
+            analyserNode.getFloatTimeDomainData(values);
+            graphics.fillStyle = "rgba(0, 0, 0, 0.1)";
+            graphics.fillRect(0, 0, w, h);
+            graphics.beginPath();
+            graphics.fillStyle = "#28E5FF";
+            graphics.strokeStyle = "#28E5FF";
+            ArrayPlotter.render(graphics, values, 0, w, 0, h, 0, values.length, -1.0, 1.0);
+            graphics.stroke();
+            if (null !== point) {
+                graphics.beginPath();
+                graphics.arc(point.x, point.y, 9, 0.0, 2.0 * Math.PI);
+                graphics.fill();
+            }
+            window.requestAnimationFrame(run);
+        };
+        run();
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Filter + Delay</h2>
+</header>
+<article class="center">
+    <canvas style="width: 1600px; height: 600px; background-color: #222;" id="stage"></canvas>
+</article>
+<footer></footer>
+</body>
+</html>

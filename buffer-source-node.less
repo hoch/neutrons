@@ -1,0 +1,45 @@
+.stage {
+  width: 70%;
+  height: 80%;
+  display: flex;
+  flex-direction: column;
+}
+
+.controls {
+  height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template: 40% 30% 30% e("/") 25% 25% 25% 25%;
+  grid-gap: 16px;
+}
+
+.loop {
+  grid-column-start: 1;
+  grid-column-end: 5;
+  width: 100%;
+  height: 100%;
+}
+
+.push-button {
+  border-radius: 4%;
+  margin: 0;
+  padding: 48px 8px;
+  border: 8px #333 solid;
+  background-color: black;
+  box-sizing: border-box;
+  & canvas {
+    opacity: 0.16;
+  }
+  &.active {
+    border: 8px #28E5FF solid;
+    box-shadow: inset 0 0 32px 0 rgba(40, 229, 255, 0.75);
+    & canvas {
+      opacity: 0.96;
+    }
+  }
+}

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Formant</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Midi} from "./modules/sequencing.js";
+        import {midiToFrequency, dbToGain} from "./modules/neutrons.js";
+        import {formant, formant_names} from "./modules/formant.js";
+
+        const context = Policy.newAudioContext();
+        const synth = context.createGain();
+        const output = context.createGain();
+        output.gain.value = 3.0;
+        output.connect(context.destination);
+
+        const createFilter = (input, output) => {
+            const filterNode = context.createBiquadFilter();
+            filterNode.type = "bandpass";
+            const gainNode = context.createGain();
+            gainNode.gain.value = 0.0;
+            input.connect(filterNode).connect(gainNode).connect(output);
+            return (frequency, amplitude, bandWidth) => {
+                filterNode.Q.value = frequency / bandWidth;
+                filterNode.frequency.value = frequency;
+                gainNode.gain.value = dbToGain(amplitude);
+            };
+        };
+        const filters = [
+            createFilter(synth, output),
+            createFilter(synth, output),
+            createFilter(synth, output),
+            createFilter(synth, output),
+            createFilter(synth, output)
+        ];
+        const values = formant.bass;
+        const letter = document.querySelector("span");
+        letter.style.fontSize = "512px";
+        const setFormant = (formatIndex) => {
+            for (let i = 0; i < filters.length; i++) {
+                letter.textContent = formant_names[formatIndex];
+                filters[i].apply(null, values[formatIndex][i]);
+            }
+        };
+        setFormant(0);
+
+        Midi.request().then(midi => {
+            const events = Midi.mapAllEvents(midi);
+            const actives = [];
+            events.onController = (id, value) => {
+                const formatIndex = Math.round(value * (values.length - 1));
+                setFormant(formatIndex);
+            };
+            events.onNoteOn = (note, ignore) => {
+                const oscillator = context.createOscillator();
+                oscillator.frequency.value = midiToFrequency(note - 24, 440.0);
+                oscillator.type = "square";
+                oscillator.start();
+                const envelope = context.createGain();
+                envelope.gain.value = 0.0;
+                envelope.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.002);
+                oscillator.connect(envelope).connect(synth);
+                actives[note] = () => {
+                    const endTime = context.currentTime + 0.050;
+                    envelope.gain.linearRampToValueAtTime(0.0, endTime);
+                    oscillator.stop(endTime);
+                };
+            };
+            events.onNoteOff = (note) => {
+                const active = actives[note];
+                if (active) {
+                    active();
+                    delete actives[note];
+                }
+            };
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Formant</h2>
+</header>
+<article class="center">
+    <span></span>
+</article>
+<footer></footer>
+</body>
+</html>

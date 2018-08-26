@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Midi MPK Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Midi} from "./modules/sequencing.js";
+
+        const context = Policy.newAudioContext();
+
+        const canvas = document.querySelector("canvas");
+        const graphics = canvas.getContext("2d");
+
+        const blocks = [];
+
+        for (let y = 0; y < 10; y++) {
+            for (let x = 0; x < 20; x++) {
+                blocks.push({x: x, y: y});
+            }
+        }
+
+        let position = 0.5;
+
+        const run = () => {
+            const width = canvas.width = canvas.clientWidth;
+            const height = canvas.height = canvas.clientHeight;
+
+            graphics.fillStyle = "orange";
+            for(let block of blocks ) {
+            }
+
+            graphics.fillStyle = "white";
+            graphics.fillRect(position * (width - 128), height - 16, 128, 16);
+
+
+            window.requestAnimationFrame(run);
+        };
+        run();
+
+        Midi.request()
+            .then(midi => {
+                const events = Midi.mapAllEvents(midi);
+                events.onController = (id, unipolar) => {
+                    position = unipolar;
+                    console.log(position);
+                };
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Midi MPK Game</h2>
+</header>
+<canvas style="width: 100%; height: 80%; background-color: #1f545c"></canvas>
+</body>
+</html>

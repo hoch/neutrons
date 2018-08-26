@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>List all connected devices</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        navigator.mediaDevices.enumerateDevices()
+            .catch(error => console.log(error))
+            .then(x => {
+                const list = document.querySelector("ul#media-devices");
+                x.forEach((info, index, devices) => {
+                    const label = info.label;
+                    if (label !== "") {
+                        const item = document.createElement("li");
+                        if (info.deviceId === "default") {
+                            item.classList.add("default");
+                        }
+                        item.textContent = label;
+                        list.appendChild(item);
+                    }
+                });
+            });
+        navigator.requestMIDIAccess()
+            .catch(error => console.log("MidiData...", error))
+            .then(midi => {
+                if (undefined === midi) {
+                    return;
+                }
+                const actives = new Map();
+                const list = document.querySelector("ul#midi-devices");
+                const appendDevices = (devices, prefix) => {
+                    for (let device of devices) {
+                        const label = device.name;
+                        console.log(device);
+                        if (label !== "") {
+                            const item = document.createElement("li");
+                            item.textContent = prefix + " " + label;
+                            list.appendChild(item);
+                            if (device.type === "input") {
+                                device.onmidimessage = ignore => {
+                                    item.classList.add("default");
+                                    actives.set(item, performance.now());
+                                };
+                            }
+                        }
+                    }
+                };
+                appendDevices(midi.inputs.values(), "←");
+                appendDevices(midi.outputs.values(), "→");
+                setInterval(() => {
+                    for (let entry of actives) {
+                        if (performance.now() > entry[1] + 1000) {
+                            entry[0].classList.remove("default");
+                            actives.delete(entry[0]);
+                        }
+                    }
+                }, 50);
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Enumerate Devices</h2>
+</header>
+<h3>Media</h3>
+<ul id="media-devices"></ul>
+<h3>Midi</h3>
+<ul id="midi-devices"></ul>
+</body>
+</html>

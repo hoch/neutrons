@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Audio Api Automation</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <style>
+        canvas {
+            top: 0;
+            position: absolute;
+        }
+
+        pre {
+            top: 0;
+            left: 32px;
+            color: #999;
+            position: absolute;
+        }
+    </style>
+    <script type="module">
+        import {PlotterCanvas} from "./modules/plotter.js";
+        import {replaceElement} from "./modules/standard.js";
+
+        const automate = (param) => {
+            // https://www.w3.org/TR/webaudio/#example1-AudioParam
+            const curveLength = 44100;
+            const curve = new Float32Array(curveLength);
+            for (let i = 0; i < curveLength; ++i)
+                curve[i] = Math.sin(Math.PI * i / curveLength);
+            const t0 = 0;
+            const t1 = 0.1;
+            const t2 = 0.2;
+            const t3 = 0.3;
+            const t4 = 0.325;
+            const t5 = 0.5;
+            const t6 = 0.6;
+            const t7 = 0.7;
+            const t8 = 1.0;
+            const timeConstant = 0.1;
+            param.setValueAtTime(0.2, t0);
+            param.setValueAtTime(0.3, t1);
+            param.setValueAtTime(0.4, t2);
+            param.linearRampToValueAtTime(1, t3);
+            param.linearRampToValueAtTime(0.8, t4);
+            param.setTargetAtTime(.5, t4, timeConstant);
+            param.setValueAtTime(0.5 + (0.8 - 0.5) * Math.exp(-(t5 - t4) / timeConstant), t5);
+            param.exponentialRampToValueAtTime(0.75, t6);
+            param.exponentialRampToValueAtTime(0.05, t7);
+            param.setValueCurveAtTime(curve, t7, t8 - t7);
+        };
+        const plotter = new PlotterCanvas();
+        plotter.domElement.style.background = "transparent";
+        plotter.color = "#28E5FF";
+        const sampleRate = 48000;
+        const seconds = 1.0;
+        const length = Math.ceil(sampleRate * seconds);
+        const context = new OfflineAudioContext(1, length, sampleRate);
+        const constantSource = context.createConstantSource();
+        constantSource.offset.value = 0.0;
+        automate(constantSource.offset);
+        document.querySelector("pre").textContent = automate;
+        constantSource.start();
+        constantSource.connect(context.destination);
+        context.startRendering()
+            .then(buffer => {
+                plotter.setYRange(1.0, 0.0);
+                plotter.setWaveform(buffer.getChannelData(0));
+                replaceElement(plotter.domElement, document.querySelector("div#canvas"));
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Web Audio Api Automation</h2>
+</header>
+<article>
+    <div style="position: relative; width: 100%; height: 100%;">
+        <pre></pre>
+        <div id="canvas"></div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

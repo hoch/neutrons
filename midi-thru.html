@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Midi Thru</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Midi, MidiData} from "./modules/sequencing.js";
+        import {PianoRoll} from "./modules/piano-roll.js";
+        import {replaceElement} from "./modules/standard.js";
+
+        Midi.request()
+            .then(midi => {
+                Midi.installPanic(midi);
+
+                const output = midi.outputs.get("1752208568");
+                if (output === undefined) {
+                    alert("Could not found 'Pro14 MIDI device'!");
+                    return;
+                }
+                const pianoRoll = new PianoRoll(4);
+                replaceElement(pianoRoll.domElement, document.querySelector("div#piano-roll"));
+
+                const events = Midi.mapAllEvents(midi);
+                events.onNoteOn = (note, velocity) => {
+                    pianoRoll.press(note);
+                    output.send(MidiData.noteOn(0, note, velocity * 127.0));
+                };
+                events.onNoteOff = (note) => {
+                    pianoRoll.release(note);
+                    output.send(MidiData.noteOff(0, note));
+                };
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Midi Thru</h2>
+</header>
+<article class="center">
+    <div id="piano-roll"></div>
+</article>
+<footer></footer>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fourier Series</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {Linear, Percent, LinearInt, NoFloat} from "./modules/mapping.js";
+        import {ParameterKnob} from "./modules/editors.js";
+
+        const waveformInput = document.getElementById("waveform").elements["waveform"];
+        const showCircles = document.querySelector("input#show-circles");
+        const canvas = document.querySelector("canvas");
+        const context = canvas.getContext("2d");
+
+        const TAU = Math.PI * 2.0;
+        const Scale = 64.0;
+        const values = new Float32Array(256).fill(NaN);
+        let time = 0.0;
+        let startTime = new Date().getTime();
+        let valuePointer = 0;
+        let x = 128.0,
+            y = 128.0;
+
+        const fourier = (order) => {
+            const phase = order * time * TAU;
+            const radius = 4.0 / (order * Math.PI) * Scale;
+            if (showCircles.checked) {
+                context.beginPath();
+                context.strokeStyle = "#FFFAFF";
+                context.arc(x, y, radius, 0, TAU);
+                context.stroke();
+            }
+            context.beginPath();
+            context.strokeStyle = "#FFFAFF";
+            context.moveTo(x, y);
+            x += Math.cos(phase) * radius;
+            y += Math.sin(phase) * radius;
+            context.lineTo(x, y);
+            context.stroke();
+        };
+
+        const connect = () => {
+            context.beginPath();
+            context.setLineDash([2, 1]);
+            context.moveTo(x + 0.5, y + 0.5);
+            context.lineTo(256 + 0.5, y + 0.5);
+            context.strokeStyle = "#E0C8FF";
+            context.stroke();
+            context.setLineDash([]);
+        };
+
+        const drawWave = () => {
+            values[valuePointer++ & 255] = y;
+            context.beginPath();
+            context.strokeStyle = "#28E5FF";
+            context.moveTo(256 + 0.5, y + 0.5);
+            for (let i = 1; i < 256; ++i) {
+                const value = values[(valuePointer - i) & 255];
+                if (value === value)
+                    context.lineTo(256 + i + 0.5, value + 0.5);
+            }
+            context.stroke();
+        };
+
+        const frequency = ParameterBuilder.begin("Frequency")
+            .valueMapping(new Linear(-4.0, -3.0))
+            .printMapping(Percent)
+            .value(-3.5)
+            .unit("%")
+            .create();
+
+        const clearLambda = () => values.fill(NaN);
+
+        const order = ParameterBuilder.begin("Order")
+            .valueMapping(new LinearInt(1, 8))
+            .printMapping(NoFloat)
+            .value(1)
+            .callback(clearLambda)
+            .unit("#")
+            .create();
+
+        const controls = document.querySelector("div#controls");
+        controls.appendChild(new ParameterKnob(frequency).domElement);
+        controls.appendChild(new ParameterKnob(order).domElement);
+        document.querySelector("form#waveform").onchange = () => {
+            order.value = 1;
+            clearLambda;
+        };
+
+        (function frame() {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            context.save();
+            context.scale(2.0, 2.0);
+            x = 144.0;
+            y = 128.0;
+            switch (waveformInput.value) {
+                case "square": {
+                    const ordLimit = 1 << (order.value - 1);
+                    for (let ord = 0; ord < ordLimit; ord++) {
+                        fourier((ord << 1) + 1);
+                    }
+                    break;
+                }
+                case "sawtooth": {
+                    const ordLimit = order.value + 1;
+                    for (let ord = 1; ord < ordLimit; ord++) {
+                        fourier(ord << 1);
+                    }
+                    break;
+                }
+            }
+            connect();
+            drawWave();
+            context.restore();
+            const now = new Date().getTime();
+            time += (now - startTime) * Math.pow(10.0, frequency.value);
+            startTime = now;
+            window.requestAnimationFrame(frame);
+        })();
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Fourier Series</h2>
+</header>
+<article class="center">
+    <div>
+        <canvas width="1024" height="512"></canvas>
+        <div id="controls"></div>
+        <div>
+            <input type="checkbox" id="show-circles" checked>
+            <label for="show-circles">Show Circles</label>
+            <form id="waveform" style="display: inline-flex;">
+                <input type="radio" name="waveform" value="square" id="square" checked>
+                <label for="square">Square</label>
+                <input type="radio" name="waveform" value="sawtooth" id="sawtooth">
+                <label for="sawtooth">Sawtooth</label>
+            </form>
+        </div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Spectrum Splitting</title>
+    <script type="module">
+        import * as N from './modules/neutrons.js';
+        import {ArrayPlotter, PlotterRange, PlotterRangeEvents} from "./modules/plotter.js";
+        import {Linear} from "./modules/mapping.js";
+
+        const duration = 10.0; // seconds
+        const sampleRate = 44100;
+        const numChannels = 6;
+        const numFrames = sampleRate * duration;
+        const context = new OfflineAudioContext(numChannels, numFrames, sampleRate);
+        const destination = context.destination;
+        const merger = context.createChannelMerger(numChannels);
+        merger.connect(destination);
+
+        const oscillator = context.createOscillator();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(20.0, 0.0);
+        oscillator.frequency.exponentialRampToValueAtTime(sampleRate / 2, duration);
+        oscillator.start();
+        oscillator.connect(merger, 0, 0);
+
+        const bands = N.crossoverIIRFilters(context, oscillator, [120, 2000, 10000], sampleRate);
+
+        for (let i = 0; i < bands.length; ++i) {
+            const band = bands[i];
+            band.connect(merger, 0, i + 1);
+            band.connect(merger, 0, bands.length + 1);
+        }
+
+        function saveWavefile(wav, name) {
+            var blob = new Blob([wav], {type: "audio/wav"});
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = name || "test.wav";
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        context.oncomplete = event => {
+            const canvas = document.querySelector("canvas");
+            const context = canvas.getContext("2d");
+            const width = 1600;
+            const range = new PlotterRange(width, new Linear(0, numFrames));
+            PlotterRangeEvents.attach(canvas, range);
+
+            range.addObserver(_ => {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                context.fillStyle = "white";
+                context.strokeStyle = "white";
+                context.beginPath();
+                for (let i = 0; i < numChannels; ++i) {
+                    const y0 = i * 128;
+                    const y1 = i * 128 + 128 | 0;
+                    ArrayPlotter.render(context, event.renderedBuffer.getChannelData(i), 0, width, y0, y1, range.frameStart, range.frameEnd, -1.0, 1.0);
+                }
+                context.stroke();
+            });
+            range.dispatch();
+            // saveFile(N.encode32(event.renderedBuffer));
+        };
+        context.startRendering();
+    </script>
+</head>
+<body style="background-color: #2A2A2A;">
+<canvas width="1600" height="1024" style="background-color: black;"></canvas>
+</body>
+</html>

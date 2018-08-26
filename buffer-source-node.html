@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AudioBufferSourceNode</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="buffer-source-node.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {readAudio, replaceElement} from "./modules/standard.js";
+        import {barsToSeconds, downmix, normalise} from "./modules/neutrons.js";
+        import {PlotterCanvas} from "./modules/plotter.js";
+        import {Midi} from "./modules/sequencing.js";
+        import {echo} from "./modules/effects.js";
+
+        const context = Policy.newAudioContext();
+        Promise.all([
+            readAudio(context, "files/loops/dnb.ogg"),
+            readAudio(context, "files/one-shots/reece-1.ogg"),
+            readAudio(context, "files/one-shots/reece-2.ogg"),
+            readAudio(context, "files/one-shots/khrns-1.ogg"),
+            readAudio(context, "files/one-shots/khrns-2.ogg"),
+            readAudio(context, "files/one-shots/khrns-3.ogg"),
+            readAudio(context, "files/one-shots/signal.ogg"),
+            readAudio(context, "files/one-shots/chip.ogg"),
+            readAudio(context, "files/one-shots/wiggle.ogg"),
+        ])
+            .then(buffers => {
+                let startTime = Number.NEGATIVE_INFINITY;
+                let stopLoop = null;
+                const loop = buffers[0];
+                const destination = context.destination;
+                const toggle = (playing) => {
+                    if (null !== stopLoop && !playing) {
+                        stopLoop();
+                        stopLoop = null;
+                        return;
+                    }
+                    if (playing) {
+                        startTime = context.currentTime;
+                        const bufferSource = context.createBufferSource();
+                        bufferSource.loop = true;
+                        bufferSource.buffer = loop;
+                        bufferSource.connect(destination);
+                        bufferSource.start(startTime);
+                        stopLoop = () => {
+                            stopLoop = null;
+                            bufferSource.stop();
+                            startTime = Number.NEGATIVE_INFINITY;
+                        };
+                    }
+                };
+                const shotsOutput = context.createGain();
+                echo(context, shotsOutput, destination, barsToSeconds(3.0 / 16.0, 175.0), 0.3, 0.5);
+                shotsOutput.connect(destination);
+                const positions = new Float32Array(8).fill(Number.NEGATIVE_INFINITY);
+                const playSound = (index) => {
+                    const startTime = context.currentTime;
+                    const envelope = context.createGain();
+                    envelope.gain.value = 1.0;
+                    const source = context.createBufferSource();
+                    source.buffer = buffers[index + 1];
+                    source.start(startTime);
+                    source.connect(envelope);
+                    envelope.connect(shotsOutput);
+                    positions[index] = startTime;
+                    return () => {
+                        const endTime = startTime + 0.50;
+                        envelope.gain.linearRampToValueAtTime(0.0, endTime);
+                        source.stop(endTime);
+                        positions[index] = Number.NEGATIVE_INFINITY;
+                    };
+                };
+                const loopCanvas = new PlotterCanvas();
+                loopCanvas.setWaveform(normalise(downmix(loop)));
+                replaceElement(loopCanvas.domElement, document.querySelector("div.loop"));
+                const buttons = document
+                    .querySelector("div.grid")
+                    .querySelectorAll("div.push-button");
+                const soundPlotters = [];
+                for (let i = 0; i < 8; i++) {
+                    const sound = buffers[i + 1];
+                    const canvas = new PlotterCanvas();
+                    canvas.color = "#FFF";
+                    canvas.setWaveform(sound.getChannelData(0));
+                    canvas.domElement.style.background = "transparent";
+                    buttons[i].appendChild(canvas.domElement);
+                    soundPlotters[i] = canvas;
+                }
+                const mapNoteToIndex = (note) => 48 <= note && note < 52 ? note - 48 : 44 <= note && note < 48 ? note - 40 : -1;
+                const active = [];
+                Midi.request().then(midi => {
+                    const events = Midi.mapAllEvents(midi);
+                    events.onNoteOn = (note, ignore) => {
+                        const index = mapNoteToIndex(note);
+                        if (-1 !== index) {
+                            active[index] = playSound(index);
+                            buttons[index].classList.add("active");
+                        }
+                    };
+                    events.onNoteOff = (note) => {
+                        const index = mapNoteToIndex(note);
+                        if (-1 !== index) {
+                            active[index]();
+                            buttons[index].classList.remove("active");
+                        }
+                    };
+                });
+                const run = () => {
+                    {
+                        const elapsed = context.currentTime - startTime;
+                        loopCanvas.setCursor((elapsed % loop.duration) * loop.sampleRate);
+                    }
+                    for (let i = 0; i < 8; i++) {
+                        const plotter = soundPlotters[i];
+                        const sound = buffers[i + 1];
+                        const elapsed = context.currentTime - positions[i];
+                        if (elapsed < sound.duration) {
+                            plotter.setCursor(elapsed * sound.sampleRate);
+                        } else {
+                            plotter.setCursor(NaN);
+                        }
+                    }
+                    window.requestAnimationFrame(run);
+                };
+                run();
+
+                document.querySelector("input#play").onchange = event =>
+                    toggle(event.target.checked);
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Audio Buffer Source Node</h2>
+</header>
+<article class="center">
+    <div class="stage">
+        <div class="controls">
+            <input type="checkbox" id="play">
+            <label for="play">Play</label>
+        </div>
+        <div class="grid">
+            <div class="loop"></div>
+            <div class="push-button"></div>
+            <div class="push-button"></div>
+            <div class="push-button"></div>
+            <div class="push-button"></div>
+            <div class="push-button"></div>
+            <div class="push-button"></div>
+            <div class="push-button"></div>
+            <div class="push-button"></div>
+        </div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Loop Station</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {LoopStation} from "./worklets/LoopStation.js";
+        import {ArrayPlotter} from "./modules/plotter.js";
+        import {fetchMicrophone} from "./modules/standard.js";
+        // TODO Cursor playback
+        const context = Policy.newAudioContext();
+        Promise.all([
+            context.audioWorklet.addModule("./worklets/LoopStationProcessor.js")
+        ]).then(_ => {
+            const loopStation = new LoopStation(context);
+            fetchMicrophone()
+                .then(stream => {
+                    context
+                        .createMediaStreamSource(stream)
+                        .connect(loopStation)
+                        .connect(context.destination);
+                });
+
+            const events = loopStation.events;
+            const recordButton = document.querySelector("div#record");
+            const trackList = document.querySelector("div#tracks");
+            const createTrackView = track => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 800;
+                canvas.height = 96;
+                canvas.style.display = "block";
+                const graphics = canvas.getContext("2d");
+                graphics.beginPath();
+                graphics.fillStyle = "white";
+                ArrayPlotter.renderOversampled(graphics, track[0], 0, 800, 0, 48, 0, track[0].length, 1, -1);
+                ArrayPlotter.renderOversampled(graphics, track[1], 0, 800, 48, 96, 0, track[1].length, 1, -1);
+                return canvas;
+            };
+            recordButton.setClass = className => recordButton.className = "record " + className;
+            recordButton.setClass("idle");
+            recordButton.onmousedown = () => loopStation.startRecording();
+            events.onTimelineCreating = () => {
+                recordButton.setClass("creating");
+                recordButton.onmousedown = () => loopStation.stopRecording();
+            };
+            events.onTimelineCreated = (seconds) => {
+                recordButton.onmousedown = () => {
+                    recordButton.setClass("waiting");
+                    loopStation.startRecording();
+                };
+            };
+            events.onTrackRecording = () => recordButton.setClass("recording");
+            events.onTrackAppended = (track) => {
+                trackList.appendChild(createTrackView(track));
+                recordButton.setClass("new-track");
+            };
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Loop Station</h2>
+</header>
+<article>
+    <div id="record"></div>
+    <div id="tracks"></div>
+</article>
+<footer></footer>
+</body>
+</html>

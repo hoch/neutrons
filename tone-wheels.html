@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tone Wheels</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {midiToFrequency, barsToSeconds} from "./modules/neutrons.js";
+        import {Sequencer} from "./modules/sequencing.js";
+        import {ToneWheels} from "./modules/tone-wheels.js";
+        import {replaceElement} from "./modules/standard.js";
+        import {echo} from "./modules/effects.js";
+
+        const context = Policy.newAudioContext();
+
+        const wheels = new ToneWheels();
+        wheels.createParticle(0, -96, -112);
+        wheels.createParticle(3, -208, -120);
+        wheels.createParticle(5, -80, -16);
+        wheels.createParticle(8, 80, 102);
+        wheels.createParticle(10, 80, 48);
+        wheels.createWheel(128, 2, 0.5, 4, 112, 144);
+        wheels.createWheel(128, 5, 0.25, 5, -4, 16);
+        wheels.createWheel(128, 3, 0.25, 6, -144, -112);
+
+        const sequencer = new Sequencer(() => context.currentTime * 1000.0);
+        const master = context.createGain();
+        master.gain.value = 0.3;
+        echo(context, master, context.destination, barsToSeconds(3.0 / 16.0, sequencer.bpm.value), 0.5, 0.3);
+        sequencer.addProcessor((computeStartMillis, t0, t1) => wheels.process((wheel, particle, delta, pan) => {
+            const startTime = particle.lastTriggerTime = computeStartMillis(t0 + delta) / 1000.0;
+            const endTime = startTime + 0.250;
+            const oscillator = context.createOscillator();
+            oscillator.frequency.value = midiToFrequency(wheel.octave * 12 + particle.note, 440.0);
+            oscillator.type = "triangle";
+            oscillator.start(startTime);
+            oscillator.stop(endTime);
+            const envelope = context.createGain();
+            envelope.gain.value = 1.0;
+            envelope.gain.setValueAtTime(1.0, startTime);
+            envelope.gain.linearRampToValueAtTime(0.0, endTime);
+            const stereoPanner = context.createStereoPanner();
+            stereoPanner.pan.value = pan;
+            oscillator.connect(envelope).connect(stereoPanner).connect(master).connect(context.destination);
+        }, t0, t1));
+        sequencer.start();
+
+        const updateScreen = () => {
+            wheels.render(context.currentTime, sequencer.bars());
+            window.requestAnimationFrame(updateScreen);
+        };
+        replaceElement(wheels.domElement, document.querySelector("div#wheels"))
+        updateScreen();
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Tone Wheels</h2>
+</header>
+<article>
+    <div id="wheels"></div>
+</article>
+<footer></footer>
+</body>
+</html>

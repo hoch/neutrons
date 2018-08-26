@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Goertzel</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {PlotterRangeEvents, PlotterCanvas} from "./modules/plotter.js";
+        import {replaceElement} from "./modules/standard.js";
+        import {exponentialRampByTime, goertzel} from "./modules/neutrons.js";
+
+        const duration = 10.0;
+        const sampleRate = 48000;
+        const context = new OfflineAudioContext(1, sampleRate * duration, sampleRate);
+        const gainNode = context.createGain();
+        gainNode.gain.value = 0.5;
+        gainNode.connect(context.destination);
+        const oscillator = context.createOscillator();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(20.0, 0.0);
+        oscillator.frequency.exponentialRampToValueAtTime(sampleRate / 2, duration);
+        oscillator.start();
+        oscillator.connect(gainNode);
+
+        const chirpCanvas = new PlotterCanvas();
+        replaceElement(chirpCanvas.domElement, document.querySelector("div#chirp"));
+        chirpCanvas.domElement.style.height = "256px";
+
+        const responseCanvas = new PlotterCanvas();
+        responseCanvas.setYRange(2.0, 0.0);
+        replaceElement(responseCanvas.domElement, document.querySelector("div#response"));
+        responseCanvas.domElement.style.height = "256px";
+
+        const stage = document.querySelector("div#stage");
+        PlotterRangeEvents.attach(stage, chirpCanvas.range);
+        PlotterRangeEvents.attach(stage, responseCanvas.range);
+
+        context.startRendering().then(buffer => {
+            const signal = buffer.getChannelData(0);
+            chirpCanvas.setWaveform(signal);
+            const testTime = duration / 4;
+            const freq = exponentialRampByTime(20.0, sampleRate / 2.0, 0.0, duration, testTime);
+            console.log("test", freq);
+            const response = new Float32Array(signal.length);
+            let maxIndex = -1;
+            let maxValue = 0.0;
+            for (let i = 0; i < signal.length; i++) {
+                const numCircles = 4.0;
+                const value = goertzel(signal, freq, sampleRate, i, Math.floor(sampleRate / freq) * numCircles);
+                if (maxValue < value) {
+                    maxValue = value;
+                    maxIndex = i;
+                }
+                response[i] = value;
+            }
+            responseCanvas.setWaveform(response);
+            responseCanvas.addMarker(testTime * sampleRate);
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Goertzel</h2>
+</header>
+<article>
+    <div style="display: flex; flex-direction: column; width: 100%; height: 100%;" id="stage">
+        <div id="chirp"></div>
+        <div id="response"></div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

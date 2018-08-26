@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Aliasing</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {replaceElement} from "./modules/standard.js";
+        import {ParameterKnob} from "./modules/editors.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {Linear, OneFloat} from "./modules/mapping.js";
+
+        const context = Policy.newAudioContext();
+        context.audioWorklet.addModule("./worklets/SineProcessor.js")
+            .then(ignore => {
+                const sine = new AudioWorkletNode(context, "sine", {
+                    numberOfInputs: 0,
+                    numberOfOutputs: 1,
+                    outputChannelCount: [1],
+                    channelCount: 1,
+                    channelCountMode: "explicit",
+                    channelInterpretation: "speakers"
+                });
+                // sine.connect(context.destination);
+
+                const rate = ParameterBuilder.begin("Frequency")
+                    .valueMapping(new Linear(0.0, 1.0))
+                    .printMapping(OneFloat)
+                    .value(0.0)
+                    .unit("")
+                    .callback(parameter => sine.port.postMessage(parameter.value * context.sampleRate))
+                    .create();
+
+                replaceElement(new ParameterKnob(rate).domElement, document.querySelector("div#frequency"));
+
+                const canvas = document.querySelector("canvas");
+                const graphics = canvas.getContext("2d");
+
+                let angle = 0.0;
+                const run = (time) => {
+                    const size = canvas.width;
+                    graphics.clearRect(0, 0, size, size);
+                    graphics.fillStyle = "white";
+                    const radius = size >> 1;
+                    graphics.arc(radius, radius, radius, 0.0, 2.0 * Math.PI, false);
+                    graphics.fill();
+                    graphics.beginPath();
+                    graphics.strokeStyle = "#000";
+                    graphics.lineWidth = 4.0;
+                    angle += 2.0 * Math.PI * rate.value;
+                    graphics.moveTo(radius, radius);
+                    graphics.lineTo(radius + Math.sin(angle) * radius, radius - Math.cos(angle) * radius);
+                    graphics.closePath();
+                    graphics.stroke();
+                    window.requestAnimationFrame(run);
+                };
+                window.requestAnimationFrame(run);
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Aliasing</h2>
+</header>
+<article class="center">
+    <div id="frequency"></div>
+    <canvas width="256" height="256"></canvas>
+</article>
+<footer>❤︎</footer>
+</body>
+</html>

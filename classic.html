@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Classic Waveforms</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+
+        const context = Policy.newAudioContext();
+
+        const drawWaveform = (real, imag) => {
+            const canvas = document.querySelector("canvas#waveform");
+            const context = canvas.getContext("2d");
+            const sampleRate = 3000;
+            const width = canvas.width;
+            const height = canvas.height;
+            const midHeight = (height - 1.0) * 0.5;
+            const valueToY = value => midHeight - value * midHeight;
+            const renderer = new OfflineAudioContext(1, width + 1, sampleRate);
+            const oscillator = renderer.createOscillator();
+            oscillator.setPeriodicWave(renderer.createPeriodicWave(real, imag));
+            oscillator.frequency.setValueAtTime(sampleRate / width, 0.0);
+            oscillator.start(0.0);
+            oscillator.connect(renderer.destination);
+            renderer.startRendering().then(buffer => {
+                const channelData = buffer.getChannelData(0);
+                context.clearRect(0, 0, width, height);
+                context.save();
+                context.translate(0.0, 0.5);
+                context.beginPath();
+                context.strokeStyle = "#999";
+                context.setLineDash([1, 3]);
+                context.moveTo(0, midHeight);
+                context.lineTo(width, midHeight);
+                context.stroke();
+                context.setLineDash([]);
+                context.beginPath();
+                context.strokeStyle = "white";
+                context.moveTo(0, valueToY(channelData[0]));
+                for (let x = 0; x <= width; x++) {
+                    context.lineTo(x, valueToY(channelData[x]));
+                }
+                context.stroke();
+                context.restore();
+            });
+        };
+
+        const maxPartials = 2048;
+        const imag = new Float32Array(maxPartials);
+        const real = new Float32Array(maxPartials);
+
+        // https://www.w3.org/TR/webaudio/#oscillator-coefficients
+        const updateCoefficients = (type, numOvertones) => {
+            document.querySelector("div#show-num-overtones")
+                .textContent = numOvertones + " overtones";
+            imag.fill(0.0);
+            real.fill(0.0);
+            switch (type) {
+                case "square": {
+                    for (let i = 0; i < numOvertones; i++) {
+                        const j = i * 2 + 1;
+                        if (j >= maxPartials) return false;
+                        imag[j] = 4.0 / (Math.PI * j);
+                    }
+                    break;
+                }
+                case "sawtooth": {
+                    for (let i = 0; i < numOvertones; i++) {
+                        const j = i + 1;
+                        if (j >= maxPartials) return false;
+                        const sign = i & 1 ? -1 : 1;
+                        imag[j] = sign * (2.0 * Math.PI / j);
+                    }
+                    break;
+                }
+                case "triangle": {
+                    for (let i = 0; i < numOvertones; i++) {
+                        const j = i * 2 + 1;
+                        if (j >= maxPartials) return false;
+                        const jp = j * Math.PI;
+                        imag[j] = 8.0 * Math.sin(jp * 0.5) / (jp * jp);
+                    }
+                    break;
+                }
+            }
+            return true; // more overtone are available
+        };
+
+
+        const selectShape = document.querySelector("select#shape");
+        const inputNumOvertones = document.querySelector("input#num-overtones");
+        const queryNumOvertones = () => inputNumOvertones.value | 0;
+        const resetNumOvertones = () => inputNumOvertones.value = 0;
+
+        const frequency = 220.0;
+        const period = 1.0 / frequency;
+
+        let lastTime = NaN;
+        let lastOscillator = null;
+
+        const isOscRunning = () => lastOscillator !== null;
+
+        const startOscillator = (time) => {
+            const oscillator = context.createOscillator();
+            oscillator.setPeriodicWave(context.createPeriodicWave(real, imag));
+            oscillator.frequency.value = frequency;
+            oscillator.frequency.setValueAtTime(frequency, time);
+            oscillator.start(time);
+            oscillator.connect(context.destination);
+            lastTime = time;
+            lastOscillator = oscillator;
+        };
+
+        const stopOscillator = (time) => {
+            if (isOscRunning()) {
+                lastOscillator.stop(time);
+                lastOscillator = null;
+            }
+            lastTime = NaN;
+        };
+
+        const restartOscillator = (time) => {
+            stopOscillator(time);
+            startOscillator(time);
+        };
+
+        const reset = () => {
+            resetNumOvertones();
+            if (isOscRunning()) stopOscillator(computeNextCycleTime());
+            updateCoefficients(selectShape.value, queryNumOvertones());
+            drawWaveform(real, imag);
+        };
+
+        const computeNextCycleTime = () => {
+            if (!isOscRunning()) throw new Error("Audio not running.");
+            return lastTime + Math.ceil(((context.currentTime - lastTime) / period) * period);
+        };
+
+        document.querySelector("button#play")
+            .onclick = ignore => {
+            if (isOscRunning()) {
+                stopOscillator(computeNextCycleTime());
+            } else {
+                startOscillator(context.currentTime + 0.05); // 50ms safe delay
+            }
+        };
+
+        selectShape.onchange = ignore => {
+            selectShape.blur();
+            reset();
+        };
+
+        inputNumOvertones.oninput = ignore => {
+            updateCoefficients(selectShape.value, queryNumOvertones());
+            drawWaveform(real, imag);
+            if (isOscRunning()) {
+                restartOscillator(computeNextCycleTime());
+            }
+        };
+        reset();
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1><h2>Classic Waveforms</h2>
+</header>
+<article class="center">
+    <div>
+        <div id="show-num-overtones" style="color: #28E5FF; font-size: 10px;"></div>
+        <canvas width="800" height="257" id="waveform"></canvas>
+        <div style="display: flex; width: 800px;">
+            <label>Number of Overtones</label>
+            <input type="range" min="1" max="128" value="16" step="1" id="num-overtones" style="flex: 1; margin-left: 8px;">
+        </div>
+        <div>
+            <select id="shape">
+                <option value=triangle selected>Triangle</option>
+                <option value=sawtooth>Sawtooth</option>
+                <option value=square>Square</option>
+            </select>
+            <button id="play">Play</button>
+        </div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

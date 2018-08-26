@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Digital Audio</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {prepareList} from "./slides.js";
+
+        prepareList();
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1><h2>Digital Audio</h2>
+</header>
+<article>
+    <ul class="list">
+        <li>Digital audio is a sequence of numbers</li>
+        <li>Quantised in terms of amplitude and time</li>
+        <li>Can perfectly recreate any band-limited signal</li>
+        <li>Does not loose quality on repeating playback</li>
+        <li>Synthesising a custom signal by code has a lot of pitfalls though</li>
+        <li>Most difficult problem is to avoid aliasing</li>
+    </ul>
+</article>
+<footer></footer>
+</body>
+</html>

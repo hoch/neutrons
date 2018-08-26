@@ -1,2 +1,2 @@
 # neutrons
-WEB AUDIO/MIDI PLAYGROUND
+A web audio/midi playground

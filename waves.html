@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Waves</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script src="./lib/fft.js"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {ArrayPlotter} from "./modules/plotter.js";
+        import * as Waves from "./modules/waves.js";
+        import {Board} from "./modules/board.js";
+        import {Midi, SoftwareKeyboard} from "./modules/sequencing.js";
+        import {midiToFrequency} from "./modules/neutrons.js";
+
+        let output = null;
+        let funk = null;
+        let periodicWave = null;
+
+        const solve = () => {
+            const visit = (element) => {
+                const params = [];
+                for (let input of element.module.inputs) {
+                    const connection = input.connection;
+                    if (null !== connection) {
+                        const element = moduleToElement.get(connection.source.module);
+                        if (!visit(element)) {
+                            return false;
+                        }
+                        params.push(element.equation);
+                    } else {
+                        return false;
+                    }
+                }
+                for (let parameter of element.parameters) {
+                    params.push(parameter.value);
+                }
+                element.equation = element.factory.apply(element.factory, params);
+                return true;
+            };
+            return visit(output);
+        };
+
+        const n = 2048 | 0;
+        const real = new Float32Array(n);
+        const imag = new Float32Array(n);
+        const fft = new FFT(n);
+        const canvas = document.createElement("canvas");
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.margin = "8px 0";
+        canvas.style.backgroundColor = "black";
+        const graphics = canvas.getContext("2d");
+        const context = Policy.newAudioContext();
+
+        const updateWaveform = dofft => {
+            const width = canvas.width = canvas.clientWidth;
+            const height = canvas.height = canvas.clientHeight;
+            const centerY = Math.floor(height / 2) + 0.5;
+            graphics.clearRect(0, 0, width, height);
+            graphics.fillStyle = "#0d1d2b";
+            graphics.fillRect(width * 0.25, 0, width * 0.5, height);
+            graphics.strokeStyle = "#b0cee8";
+            graphics.beginPath();
+            graphics.moveTo(0, centerY);
+            graphics.lineTo(width, centerY);
+            graphics.stroke();
+
+            if (null !== funk) {
+                for (let i = 0; i < n; i++) {
+                    const x = i / n;
+                    real[i] = funk(x);
+                }
+                graphics.fillStyle = "#20476a";
+                ArrayPlotter.render(graphics, real, 0, width * 0.25, 0, height, 0.5 * n, n, 1.0, -1.0);
+                graphics.fillStyle = "#28E5FF";
+                ArrayPlotter.render(graphics, real, width * 0.25, width * 0.75, 0, height, 0, n, 1.0, -1.0);
+                graphics.fillStyle = "#20476a";
+                ArrayPlotter.render(graphics, real, width * 0.75, width, 0, height, 0, 0.5 * n, 1.0, -1.0);
+                graphics.stroke();
+                if (dofft) {
+                    fft.process(real, imag);
+                    periodicWave = context.createPeriodicWave(real, imag);
+                    imag.fill(0.0);
+                }
+            }
+        };
+
+        const active = [];
+
+        const noteOn = (note, velocity) => {
+            if (null === periodicWave) {
+                return;
+            }
+            const time = context.currentTime;
+            const gainNode = context.createGain();
+            gainNode.gain.setValueAtTime(0.0, time);
+            gainNode.gain.setTargetAtTime(0.3 * velocity, time, 0.01);
+            const oscillator = context.createOscillator();
+            oscillator.setPeriodicWave(periodicWave);
+            oscillator.frequency.value = midiToFrequency(note, 440.0);
+            oscillator.connect(gainNode);
+            gainNode.connect(context.destination);
+            oscillator.start();
+            active[note] = () => {
+                gainNode.gain.setTargetAtTime(0.0, time + 0.5, 0.5);
+                oscillator.stop(time + 2.5);
+            };
+        };
+
+        const noteOff = note => {
+            const release = active[note];
+            if (undefined === release) {
+                return;
+            }
+            release();
+            delete active[note];
+        };
+
+        const module = document.createElement("div");
+        const moduleHeader = document.createElement("h3");
+        const moduleLayer = document.createElement("div");
+        moduleHeader.textContent = "Module";
+        module.style.padding = "0 0 0 16px";
+        module.appendChild(moduleHeader);
+        module.appendChild(moduleLayer);
+
+        const moduleToElement = new Map();
+
+        const board = new Board();
+        board.selectionListener = selection => {
+            while (moduleLayer.firstChild) {
+                moduleLayer.removeChild(moduleLayer.firstChild);
+            }
+            const numSelected = selection.length;
+            if (1 !== numSelected) {
+                const div = document.createElement("div");
+                div.textContent = 0 === numSelected ? "No module selected." : "Multi selection.";
+                div.style.fontSize = "10px";
+                div.style.color = "#999";
+                div.style.margin = "8px 0";
+                moduleLayer.appendChild(div);
+            } else {
+                moduleLayer.appendChild(moduleToElement.get(selection[0]).controls);
+            }
+        };
+        board.selectionListener([]);
+        board.connectionChangeListener = _ => update();
+        const boardElement = board.domElement;
+        boardElement.style.border = "solid 1px #28E5FF";
+        boardElement.style.backgroundColor = "black";
+
+        const create = (factory, x, y) => {
+            const element = factory();
+            const module = element.module;
+            board.addModule(module, x - Math.floor(module.width * 0.5), y - Math.floor(module.height * 0.5));
+            moduleToElement.set(module, element);
+            module.copy = _ => create(factory, module.x, module.y).module;
+            element.onParameterChanged = () => update();
+            return element;
+        };
+
+        boardElement.addEventListener("load", event => {
+            const x = Math.round(boardElement.clientWidth * 0.5);
+            const y = Math.round(boardElement.clientHeight * 0.5);
+            output = create(Waves.outputElement, x, y);
+            update();
+        });
+
+        const update = _ => {
+            funk = solve() ? output.equation : null;
+            updateWaveform(true);
+        };
+
+        const serialize = () => {
+            const modules = board.modules;
+            const modulesToJson = [];
+            for (let i = 0; i < modules.length; i++) {
+                const module = modules[i];
+                const elements = moduleToElement.get(module);
+                modulesToJson.push(elements.toObject());
+            }
+            return JSON.stringify({
+                modules: modulesToJson,
+                connections: board.serializeConnections(),
+                x: board.translateX,
+                y: board.translateY
+            });
+        };
+
+        const deserialize = jsonString => {
+            const format = JSON.parse(jsonString);
+            board.clear();
+            moduleToElement.clear();
+            for (let i = 0; i < format.modules.length; i++) {
+                const formatModule = format.modules[i];
+                const element = Waves.createById(create, formatModule.id, formatModule.x, formatModule.y);
+                if (element.id === "output") {
+                    output = element;
+                }
+            }
+            for (let i = 0; i < format.connections.length; i++) {
+                const connection = format.connections[i];
+                const source = connection.source;
+                const target = connection.target;
+                board.connect(
+                    board.modules[source.module].outputs[source.slot],
+                    board.modules[target.module].inputs[target.slot]);
+            }
+            board.translateX = format.x;
+            board.translateY = format.y;
+            board.updateCoordinates();
+            update();
+        };
+
+        const layout = document.querySelector("div#layout");
+        layout.style.display = "grid";
+        layout.style.gridTemplate = "auto 208px / 208px auto 288px";
+        layout.style.margin = "0";
+        layout.style.padding = "0";
+        layout.addEventListener("copy", event => {
+            event.preventDefault();
+            event.clipboardData.setData("text/plain", serialize());
+        });
+        layout.addEventListener("paste", event => {
+            event.preventDefault();
+            try {
+                const jsonString = event.clipboardData.getData("text/plain");
+                if (jsonString !== "") {
+                    deserialize(jsonString);
+                }
+            } catch (e) {
+                console.log(e);
+            }
+        });
+
+        function div(textContent) {
+            const element = document.createElement("div");
+            element.textContent = textContent;
+            element.style.padding = "16px";
+            return element;
+        }
+
+        layout.appendChild(Waves.list(board, create));
+        layout.appendChild(boardElement);
+        layout.appendChild(module);
+        layout.appendChild(div(""));
+        layout.appendChild(canvas);
+        layout.appendChild(div(""));
+
+        window.onresize = _ => updateWaveform(false);
+
+        Midi.request().then(midi => {
+            const events = Midi.mapAllEvents(midi);
+            events.onNoteOn = (note, velocity) => noteOn(note, velocity);
+            events.onNoteOff = (note) => noteOff(note);
+        });
+        SoftwareKeyboard.init((note, velocity) => noteOn(note, velocity), note => noteOff(note));
+    </script>
+</head>
+<body>
+<div style="display: flex; flex-direction: column; height: 100%;">
+    <header>
+        <h1>Klangwerk</h1>
+        <h2>Waves</h2>
+    </header>
+    <div style="flex: auto; width: 100%" id="layout"></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Oscillator</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Exp} from "./modules/mapping.js";
+        import {clamp} from "./modules/standard.js";
+
+        const context = Policy.newAudioContext();
+        const oscillatorNode = context.createOscillator();
+        oscillatorNode.start();
+        const gainNode = context.createGain();
+        gainNode.gain.value = 0.0;
+        oscillatorNode.connect(gainNode).connect(context.destination);
+        const getEndTime = () => {
+            return context.currentTime + 0.004;
+        };
+        const stage = document.querySelector("div#stage");
+        const label = stage.querySelector("span");
+        const rect = stage.getBoundingClientRect();
+        const mapping = new Exp(10, 1000);
+        const setFrequency = (event) => {
+            const x = clamp(0.0, 1.0, (event.clientX - rect.x) / rect.width);
+            const frequency = mapping.y(x);
+            oscillatorNode.frequency.exponentialRampToValueAtTime(frequency, getEndTime());
+            label.textContent = Math.round(frequency) + "Hz";
+        };
+        const mouseMove = event => {
+            setFrequency(event);
+        };
+        const mouseUp = ignore => {
+            window.removeEventListener("mousemove", mouseMove);
+            window.removeEventListener("mouseup", mouseUp);
+            gainNode.gain.linearRampToValueAtTime(0.0, getEndTime());
+            label.style.visibility = "hidden";
+        };
+        stage.addEventListener("mousedown", event => {
+            window.addEventListener("mousemove", mouseMove);
+            window.addEventListener("mouseup", mouseUp);
+            label.style.visibility = "visible";
+            gainNode.gain.linearRampToValueAtTime(1.0, getEndTime());
+            activate(Math.floor((event.clientY - rect.y) / rect.height * 4.0));
+            setFrequency(event);
+        });
+        const waveforms = [
+            document.querySelector("canvas#sine"),
+            document.querySelector("canvas#triangle"),
+            document.querySelector("canvas#sawtooth"),
+            document.querySelector("canvas#square")
+        ];
+        let active = -1;
+        const activate = index => {
+            if (-1 !== active) {
+                waveforms[active].style.backgroundColor = "#444";
+            }
+            switch (index) {
+                case 0: {
+                    oscillatorNode.type = "sine";
+                    break;
+                }
+                case 1: {
+                    oscillatorNode.type = "triangle";
+                    break;
+                }
+                case 2: {
+                    oscillatorNode.type = "sawtooth";
+                    break;
+                }
+                case 3: {
+                    oscillatorNode.type = "square";
+                    break;
+                }
+            }
+            waveforms[index].style.backgroundColor = "#28E5FF";
+            active = index;
+        };
+        const initWaveformView = (index, type) => {
+            const canvas = waveforms[index];
+            const r = canvas.getBoundingClientRect();
+            const w = canvas.width = r.width;
+            const h = canvas.height = r.height;
+            const h2 = h * 0.5;
+            const hc = h * 0.4;
+            const graphics = canvas.getContext("2d");
+            graphics.strokeStyle = "white";
+            graphics.lineWidth = 2.0;
+            graphics.beginPath();
+            graphics.moveTo(0, h2 - type(0.0) * hc);
+            for (let x = 1; x < w; x++) {
+                graphics.lineTo(x, h2 - type(x / w) * hc);
+            }
+            graphics.stroke();
+            canvas.style.backgroundColor = "#222";
+            canvas.style.position = "relative";
+            canvas.addEventListener("click", () => {
+                activate(index);
+            });
+        };
+        initWaveformView(0, x => Math.sin(x * 2.0 * Math.PI));
+        initWaveformView(1, x => 1.0 - 4.0 * Math.abs(Math.floor(x + 0.25) - (x - 0.25)));
+        initWaveformView(2, x => 2.0 * (x - Math.floor(x + 0.5)));
+        initWaveformView(3, x => x - Math.floor(x + 0.5) < 0.0 ? -1.0 : 1.0);
+        activate(0);
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Oscillator</h2>
+</header>
+<article class="center">
+    <div>
+        <div style="display: flex;">
+            <div style="display: flex; flex-direction: column; width: 240px; height: 512px;">
+                <canvas style="flex: 1; width: 100%;" id="sine"></canvas>
+                <canvas style="flex: 1; width: 100%;" id="triangle"></canvas>
+                <canvas style="flex: 1; width: 100%;" id="sawtooth"></canvas>
+                <canvas style="flex: 1; width: 100%;" id="square"></canvas>
+            </div>
+            <div style="
+        display: flex; justify-content: center; align-items: center;
+        background-color: #2A2A2A; width: 1200px; height: 512px;" id="stage">
+                <span style="font-size: 96px; user-select: none;"></span>
+            </div>
+        </div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kicks</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <link rel="stylesheet" href="kicks.css">
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Kicks} from "./modules/kicks.js";
+        import {replaceElement, saveFile, encode32} from "./modules/standard.js";
+        import {Fragmentation, Sequencer} from "./modules/sequencing.js";
+        import {ParameterField, ParameterKnob} from "./modules/editors.js";
+
+        const context = Policy.newAudioContext();
+        const kicks = new Kicks();
+
+        Promise.all([
+            // TODO waa-developer
+            // Just adding this line to load a worklet into the context will break the performance,
+            // when dragging a handler. Note that it is not even used.
+            // context.audioWorklet.addModule("./worklets/StereoMeterProcessor.js")
+        ]).then(x => {
+            const master = context.createGain();
+            master.connect(context.destination);
+            // const meter = new StereoMeter(context, 400);
+            let killLast = null;
+            const sequencer = new Sequencer(() => context.currentTime * 1000.0);
+            const fragmentation = new Fragmentation((computeStartMillis, stepIndex, position) => {
+                if (null !== kicks.buffer) {
+                    const seconds = computeStartMillis(position) / 1000.0;
+                    if (null !== killLast) {
+                        killLast(seconds + 0.005);
+                        killLast = null;
+                    }
+                    const source = context.createBufferSource();
+                    source.buffer = kicks.buffer;
+                    source.start(seconds);
+                    const gainNode = context.createGain();
+                    // source.connect(meter).connect(context.destination);
+                    source.connect(gainNode).connect(master);
+                    killLast = (stopTime) => {
+                        source.stop(stopTime);
+                        gainNode.gain.linearRampToValueAtTime(0.0, stopTime);
+                    };
+                }
+            }, 1.0 / 4.0);
+            sequencer.addProcessor((sequencer, t0, t1) => fragmentation.equalise(sequencer, t0, t1));
+            // replaceElement(meter.domElement, document.querySelector("div#meter"));
+
+            document.querySelector("input#play").onchange = event =>
+                sequencer.playMode(event.target.checked);
+            document.querySelector("button#download").onclick = ignore =>
+                saveFile(encode32(kicks.buffer), "audio/wav", "kick.wav");
+
+            const viewSelector = document.querySelector("form[name=view]");
+            const updateView = () => kicks.switchView(viewSelector.modulation.value);
+            viewSelector.addEventListener("change", updateView);
+            updateView();
+
+            replaceElement(new ParameterField(sequencer.bpm).domElement, document.querySelector("div#bpm"));
+            replaceElement(kicks.domElement, document.querySelector("div#canvas"));
+            replaceElement(kicks.overtones.domElement, document.querySelector("div#overtones"));
+            replaceElement(new ParameterKnob(kicks.parameterDistortion).domElement, document.querySelector("div#distortion"));
+
+            replaceElement(new ParameterKnob(kicks.clickSetting.level).domElement, document.querySelector("div#click-level"));
+            replaceElement(new ParameterKnob(kicks.clickSetting.tune).domElement, document.querySelector("div#click-tune"));
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1><h2>Kicks</h2>
+</header>
+<article class="layout">
+    <div class="row">
+        <form name="view" class="group">
+            <input type="radio" id="pitch"
+                   name="modulation" value="pitch" checked>
+            <label for="pitch">Pitch</label>
+            <input type="radio" id="amplitude"
+                   name="modulation" value="amplitude">
+            <label for="amplitude">Amplitude</label>
+            <input type="radio" id="impulse"
+                   name="modulation" value="impulse">
+            <label for="impulse">Reverb</label>
+        </form>
+        <div class="group">
+            <input type="checkbox" id="play">
+            <label for="play">Play</label>
+            <div id="bpm"></div>
+        </div>
+        <div class="group">
+            <button id="download">Download</button>
+        </div>
+        <div class="group fill"></div>
+    </div>
+    <div id="canvas"></div>
+    <div class="row">
+        <div id="overtones"></div>
+        <div class="group">
+            <div id="distortion"></div>
+        </div>
+        <div class="group">
+            <div id="click-level"></div>
+            <div id="click-tune"></div>
+        </div>
+        <div class="group fill"></div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

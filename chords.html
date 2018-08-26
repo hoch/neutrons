@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chords</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {PadSynth, PadWorker} from "./worklets/PadSynth.js";
+        import {Chord} from "./modules/chord.js";
+        import {PianoRoll} from "./modules/piano-roll.js";
+        import {replaceElement} from "./modules/standard.js";
+
+        // http://i.imgur.com/wTpnp.jpg
+
+        const context = Policy.newAudioContext();
+        const sampleRate = context.sampleRate;
+        const pianoRoll = new PianoRoll(2);
+
+        const getScale = () => {
+            return document.querySelector("input[name=scale]:checked")
+                .value === "major" ? Chord.Major : Chord.Minor;
+        };
+
+        Promise.all([
+            context.audioWorklet.addModule("./worklets/PadSynthProcessor.js")
+        ]).then(_ => {
+            const synth = new PadSynth(context, new PadWorker(16, sampleRate, 60.0));
+            synth.connect(context.destination);
+
+            const octave = 4;
+            const active = {};
+
+            // https://chordchord.com
+
+            // Major 1, 2, 4, 6
+            // Minor 1, 3, 4, 6
+
+            window.addEventListener("keydown", event => {
+                if (event.repeat || event.shift || event.altKey || event.ctrlKey || event.metaKey) {
+                    return;
+                }
+                const rootKey = parseInt(document.querySelector("select[rootKey]").value, 10);
+                const numNotes = parseInt(document.querySelector("select[numNotes]").value, 10);
+
+                const variation = event.keyCode - 49;
+                if (0 <= variation && variation < 9) {
+                    const chord = Chord.compose(getScale(), rootKey + 12 * octave, variation, numNotes);
+                    for (let j = 0; j < chord.length; j++) {
+                        const note = chord[j];
+                        pianoRoll.press(note);
+                        synth.noteOn(note, 1.0);
+                    }
+                    active[variation] = chord;
+                }
+            });
+            window.addEventListener("keyup", event => {
+                const variation = event.keyCode - 49;
+                const chord = active[variation];
+                if (undefined !== chord) {
+                    for (let j = 0; j < chord.length; j++) {
+                        const note = chord[j];
+                        pianoRoll.release(note);
+                        synth.noteOff(note);
+                    }
+                    delete active[variation];
+                }
+            });
+        });
+        replaceElement(pianoRoll.domElement, document.querySelector("div#piano-roll"));
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Chords</h2>
+</header>
+<article class="center">
+    <div>
+        <div>
+            <input type="radio" id="major"
+                   name="scale" value="major" checked>
+            <label for="major">Major</label>
+            <input type="radio" id="minor"
+                   name="scale" value="minor">
+            <label for="minor">Minor</label>
+        </div>
+        <div>
+            <select rootKey>
+                <option value=0 selected>C</option>
+                <option value=1>C#</option>
+                <option value=2>D</option>
+                <option value=3">D#</option>
+                <option value=4>E</option>
+                <option value=5>F</option>
+                <option value=6>F#</option>
+                <option value=7>G</option>
+                <option value=8>G#</option>
+                <option value=9>A</option>
+                <option value=10>A#</option>
+                <option value=11>B</option>
+            </select>
+            <select numNotes>
+                <option value=3 selected>3</option>
+                <option value=4>4</option>
+                <option value=5>5</option>
+                <option value=6">6</option>
+                <option value=7>7</option>
+            </select>
+        </div>
+        <p>Press 1, 2, 3, 4, 5, 6, 7 [, 8, 9] to play all chord-progressions. The piano-roll is just a preview - not
+            interactive!</p>
+        <div id="piano-roll"></div>
+    </div>
+</article>
+<footer>
+</footer>
+</body>
+</html>

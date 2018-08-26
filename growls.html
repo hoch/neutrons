@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Growls</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script src="./lib/fft.js"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {readAudio, replaceElement} from "./modules/standard.js";
+        import {PlotterCanvas} from "./modules/plotter.js";
+
+        const context = Policy.newAudioContext();
+
+        readAudio(context, "files/voice.wav")
+            .then(buffer => {
+                const source = new PlotterCanvas();
+                const channelData = buffer.getChannelData(0);
+                source.setWaveform(channelData);
+                const sourceDom = source.domElement;
+                sourceDom.style.height = "192px";
+                replaceElement(sourceDom, document.querySelector("div#source"));
+                const section = new PlotterCanvas();
+                const sectionDom = section.domElement;
+                sectionDom.style.height = "192px";
+                replaceElement(sectionDom, document.querySelector("div#section"));
+
+                const fftSize = 2048;
+                const fftBins = fftSize / 2;
+                const fft = new FFT(fftSize);
+                const real = new Float32Array(fftSize);
+                const imag = new Float32Array(fftSize);
+                const cut = new Float32Array(fftSize);
+                const padding = 512;
+                const sample = new Float32Array(fftSize + padding);
+
+                let sampleIndex = 0;
+                let lastSampleIndex = 0;
+
+                const destination = context.createGain();
+                destination.gain.value = 0.0;
+                destination.connect(context.destination);
+
+                sourceDom.addEventListener("mouseenter", ignore => destination.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.1));
+                sourceDom.addEventListener("mouseout", ignore => {
+                    cut.fill(0.0);
+                    source.clearMarkers();
+                    destination.gain.linearRampToValueAtTime(0.0, context.currentTime + 0.1);
+                });
+                sourceDom.addEventListener("mousemove", event => {
+                    const clientRect = sourceDom.getBoundingClientRect();
+                    sampleIndex = Math.floor(source.range.xToIndex(event.clientX - clientRect.x));
+                    source.clearMarkers();
+                    source.addMarker(sampleIndex - fftBins);
+                    source.addMarker(sampleIndex + fftBins);
+                });
+
+                let gainNode;
+                let oscillator;
+                const run = () => {
+                    if (sampleIndex !== lastSampleIndex) {
+                        for (let i = 0; i < fftSize + padding; i++) {
+                            const index = i - fftBins + padding + sampleIndex;
+                            sample[i] = 0 > index ? 0.0 : index >= channelData.length ? 0.0 : channelData[index];
+                        }
+                        for (let i = 0; i < padding; i++) {
+                            const envelope = i / padding;
+                            cut[i] = sample[i] * envelope + sample[fftSize + i] * (1.0 - envelope);
+                        }
+                        for (let i = padding; i < fftSize; i++) {
+                            cut[i] = sample[i];
+                        }
+                        for (let i = 0; i < fftSize; i++) {
+                            real[i] = cut[i];
+                        }
+                        section.setWaveform(cut);
+                        fft.process(real, imag);
+                        // real.fill(0.0); // kill phases
+                        imag[0] = 0.0;
+                        let periodicWave;
+                        try {
+                            periodicWave = context.createPeriodicWave(real, imag);
+                        } catch (e) {
+                            console.log(real, imag, cut);
+                        }
+                        imag.fill(0.0); // kill phases
+                        const currentTime = context.currentTime;
+                        const fadeTime = 0.050;
+                        const endTime = currentTime + fadeTime;
+                        if (null !== gainNode && null != oscillator) {
+                            gainNode.gain.linearRampToValueAtTime(0.0, endTime);
+                            oscillator.stop(endTime);
+                        }
+                        gainNode = context.createGain();
+                        gainNode.gain.value = 0.0;
+                        gainNode.gain.setValueAtTime(0.0, currentTime);
+                        gainNode.gain.linearRampToValueAtTime(1.0, endTime);
+                        oscillator = context.createOscillator();
+                        oscillator.frequency.value = 30.0;
+                        oscillator.start(currentTime);
+                        oscillator.setPeriodicWave(periodicWave);
+                        oscillator.connect(gainNode);
+                        gainNode.connect(destination);
+                        lastSampleIndex = sampleIndex;
+                    }
+                    window.requestAnimationFrame(run);
+                };
+                run();
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Growls</h2>
+</header>
+<article>
+    <div id="source"></div>
+    <div id="section"></div>
+</article>
+<footer></footer>
+</body>
+</html>

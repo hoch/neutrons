@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Amatic+SC"/>
+    <script type="module">
+        import {next_slide} from "./slides.js";
+
+        const hash = document.location.hash;
+        const title = hash.substring(1).replace(new RegExp("-", 'g'), " ") || "Test Subject";
+        document.title = title;
+        const element = document.createElement("div");
+        element.className = "subject-header";
+        element.style.textAlign = "center";
+        element.textContent = title;
+        element.addEventListener("animationend", ignore => next_slide());
+        document.body.style.alignContent = "center";
+        document.body.style.justifyContent = "center";
+        document.body.style.userSelect = "none";
+        document.body.appendChild(element);
+    </script>
+</head>
+<body>
+</body>
+</html>
