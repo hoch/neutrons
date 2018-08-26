@@ -9,16 +9,12 @@
         import {Policy} from "./modules/policy.js";
         import {Exp, Linear, OneFloat, ThreeFloats} from "./modules/mapping.js";
         import {Analyser} from "./modules/analyser.js";
-        import {readAudio, replaceElement} from "./modules/standard.js";
+        import {replaceElement} from "./modules/standard.js";
         import {gainToDb} from "./modules/neutrons.js";
         import {ParameterBuilder} from "./modules/parameter.js";
         import {ParameterKnob} from "./modules/editors.js";
 
         const context = Policy.newAudioContext();
-
-        // TODO
-        // introduce default value on switch
-        // notch cannot process negative/zero Q
 
         const freqMapping = new Exp(20, 20000);
         const qMapping = new Linear(-20.0, 20.0);
@@ -143,7 +139,6 @@
             }
             parameterFreq.value = filterSpecs.freq;
         };
-
         form.addEventListener("change", ignore => setType(form.type.value));
         setType("lowpass");
 
