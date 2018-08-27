@@ -52,8 +52,6 @@ TODO on existing slides
 
 + dub mixer with quick delay cuts and reverb
 
-Show classic waveforms and there overtones and problems
-
 More ideas:
 - Simple XY Frequency + filter > delay > out
 - Wavemap (water) > use for modulation of floating oscillators

@@ -33,7 +33,7 @@
                 q: NaN,
                 gain: gainMapping.y(0.0)
             },
-            {type: "peaking", freqMapping: freqMapping, freq: 740.0, qMapping: qExp, q: 1.0, gain: gainMapping.y(1.0)},
+            {type: "peaking", freqMapping: freqMapping, freq: 740.0, qMapping: qExp, q: 3.0, gain: gainMapping.y(0.9)},
             {type: "notch", freqMapping: freqMapping, freq: 740.0, qMapping: qExp, q: 1.0, gain: NaN},
         ];
         const filter = context.createBiquadFilter();

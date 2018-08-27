@@ -17,10 +17,10 @@
 
         const context = Policy.newAudioContext();
         const masterGain = context.createGain();
-        masterGain.gain.value = 0.3;
+        masterGain.gain.value = 0.2;
         masterGain.connect(context.destination);
 
-        const timeMapping = new Exp(0.001, 5.0);
+        const timeMapping = new Exp(0.001, 1.0);
         const pAttackTime = ParameterBuilder
             .begin("Attack Time")
             .valueMapping(timeMapping)
@@ -35,7 +35,6 @@
             .value(0.500)
             .unit("s")
             .create();
-
         const pFilterFreq = ParameterBuilder
             .begin("Flt Freq")
             .valueMapping(new Exp(120.0, 20000.0))
@@ -43,19 +42,24 @@
             .value(600.0)
             .unit("hz")
             .create();
-
         const pFilterRes = ParameterBuilder
             .begin("Flt Res")
             .valueMapping(new Exp(0.01, 20.0))
             .value(0.01)
             .create();
-
         const pFilterEnv = ParameterBuilder
             .begin("Flt Env")
             .value(0.0)
             .create();
+        const parameters = [
+            pAttackTime,
+            pReleaseTime,
+            pFilterFreq,
+            pFilterRes,
+            pFilterEnv
+        ];
 
-        const attackSlope = 0.5;
+        const attackSlope = 0.9;
         const releaseSlope = 0.4;
         const sustain = false;
 
@@ -72,7 +76,7 @@
             filterEnvGain.gain.value = pFilterEnv.value;
             filter.frequency.value = pFilterFreq.value;
             filter.Q.value = pFilterRes.value;
-            filterMapper.mapping(x => 120.0 * Math.exp(x * Math.log(20000.0 / 20.0))); // TODO How to?
+            filterMapper.mapping(x => 120.0 * Math.exp(x * Math.log(20000.0 / 20.0)));
             filter.type = "lowpass";
             envelope.offset.value = 0.0;
             amplifier.gain.value = 0.0;
@@ -88,7 +92,7 @@
                     return;
                 }
                 const stopTime = time + pReleaseTime.value;
-                envelope.offset.cancelAndHoldAtTime(time);
+                envelope.offset.cancelScheduledValues(time);
                 if (time < startTime + pAttackTime.value) {
                     const currentValue = 1.0 - Math.exp((startTime - time) / attackSlope);
                     setTargetWithin(envelope.offset, currentValue, 0.0, time, stopTime, releaseSlope);
@@ -110,12 +114,16 @@
             Midi.request()
                 .then(midi => {
                     const events = Midi.mapAllEvents(midi);
-                    const onNoteOn = (note, velocity) => {
-                        actives[note] = playVoice(context.currentTime, note, velocity);
-                    };
-                    const onNoteOff = (note) => actives[note](context.currentTime);
+                    const onNoteOn = (note, velocity) => actives[note] = playVoice(context.currentTime + 0.005, note, velocity);
+                    const onNoteOff = (note) => actives[note](context.currentTime + 0.005);
                     events.onNoteOn = onNoteOn;
                     events.onNoteOff = onNoteOff;
+                    events.onController = (id, unipolar) => {
+                        const parameter = parameters[id - 1];
+                        if (parameter) {
+                            parameter.unipolar = unipolar;
+                        }
+                    };
                     SoftwareKeyboard.init(onNoteOn, onNoteOff);
                 });
         };

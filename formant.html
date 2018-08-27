@@ -40,8 +40,8 @@
         const letter = document.querySelector("span");
         letter.style.fontSize = "512px";
         const setFormant = (formatIndex) => {
+            letter.textContent = formant_names[formatIndex];
             for (let i = 0; i < filters.length; i++) {
-                letter.textContent = formant_names[formatIndex];
                 filters[i].apply(null, values[formatIndex][i]);
             }
         };
@@ -57,8 +57,8 @@
             events.onNoteOn = (note, ignore) => {
                 const oscillator = context.createOscillator();
                 oscillator.frequency.value = midiToFrequency(note - 24, 440.0);
-                oscillator.type = "square";
-                oscillator.start();
+                oscillator.type = "sawtooth";
+                oscillator.start(context.currentTime);
                 const envelope = context.createGain();
                 envelope.gain.value = 0.0;
                 envelope.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.002);
