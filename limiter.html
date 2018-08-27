@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Brickwall Limiter</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Limiter} from "./worklets/Limiter.js";
+        import {StereoMeter} from "./worklets/StereoMeter.js";
+        import {Level, OneFloat} from "./modules/mapping.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {readAudio, replaceElement} from "./modules/standard.js";
+        import {ParameterKnob} from "./modules/editors.js";
+        import {dbToGain} from "./modules/neutrons.js";
+
+        const context = Policy.newAudioContext();
+
+        Promise.all([
+            readAudio(context, "files/loops/beat-with-bass-100bpm.ogg"),
+            context.audioWorklet.addModule("./worklets/LimiterProcessor.js"),
+            context.audioWorklet.addModule("./worklets/StereoMeterProcessor.js")
+        ])
+            .then(results => {
+                const limiter = new Limiter(context);
+                const stereoMeter = new StereoMeter(context, 640);
+
+                const source = context.createBufferSource();
+                source.buffer = results[0];
+                source.loop = true;
+                source.start();
+
+                const gainNode = context.createGain();
+                const db = 0.0;
+                gainNode.gain.value = dbToGain(db);
+
+                const parameterGain = ParameterBuilder
+                    .begin("Gain")
+                    .valueMapping(new Level(-72.0, 0.0, 36.0))
+                    .printMapping(OneFloat)
+                    .value(db)
+                    .callback(p => gainNode.gain.linearRampToValueAtTime(dbToGain(p.value), context.currentTime + 0.005))
+                    .unit("db").create();
+
+                replaceElement(stereoMeter.domElement, document.querySelector("div#meter"));
+                replaceElement(new ParameterKnob(parameterGain).domElement, document.querySelector("div#gain"));
+
+                source.connect(gainNode).connect(limiter).connect(stereoMeter).connect(context.destination);
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Brickwall Limiter</h2>
+</header>
+<article class="center">
+    <div id="meter"></div>
+    <div id="gain"></div>
+</article>
+<footer></footer>
+</body>
+</html>
