@@ -10,12 +10,15 @@
         import {Exp} from "./modules/mapping.js";
         import {clamp} from "./modules/standard.js";
 
+        let active = -1;
+
         const context = Policy.newAudioContext();
         const oscillatorNode = context.createOscillator();
         oscillatorNode.start();
         const gainNode = context.createGain();
         gainNode.gain.value = 0.0;
         oscillatorNode.connect(gainNode).connect(context.destination);
+        const gains = new Float32Array([1.0, 0.8, 0.2, 0.14]);
         const getEndTime = () => {
             return context.currentTime + 0.004;
         };
@@ -42,8 +45,8 @@
             window.addEventListener("mousemove", mouseMove);
             window.addEventListener("mouseup", mouseUp);
             label.style.visibility = "visible";
-            gainNode.gain.linearRampToValueAtTime(1.0, getEndTime());
             activate(Math.floor((event.clientY - rect.y) / rect.height * 4.0));
+            gainNode.gain.linearRampToValueAtTime(-1 < active ? gains[active] : 0.0, getEndTime());
             setFrequency(event);
         });
         const waveforms = [
@@ -52,7 +55,6 @@
             document.querySelector("canvas#sawtooth"),
             document.querySelector("canvas#square")
         ];
-        let active = -1;
         const activate = index => {
             if (-1 !== active) {
                 waveforms[active].style.backgroundColor = "#444";

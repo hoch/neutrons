@@ -24,7 +24,7 @@
             gainNode.gain.value = 0.0;
             input.connect(filterNode).connect(gainNode).connect(output);
             return (frequency, amplitude, bandWidth) => {
-                filterNode.Q.value = frequency / bandWidth;
+                filterNode.Q.value = frequency / bandWidth * 2.0;
                 filterNode.frequency.value = frequency;
                 gainNode.gain.value = dbToGain(amplitude);
             };

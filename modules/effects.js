@@ -31,14 +31,15 @@ export const flanger = (context, input, output) => {
     oscillatorNode.frequency.value = 1.0;
     oscillatorNode.connect(depthNode).connect(delayNode.delayTime);
     oscillatorNode.start();
+    // TODO return audio-params
 };
 
-export const pulsarDelay = (context, input, output, bpm) => {
+export const pulsarDelay = (context, input, output, delayTimeL, delayTimeR, delayTime, feedback, lpf, hpf) => {
     const preSplitter = context.createChannelSplitter(2);
     const preDelayL = context.createDelay();
     const preDelayR = context.createDelay();
-    preDelayL.delayTime.value = barsToSeconds(1.0 / 16.0, bpm);
-    preDelayR.delayTime.value = barsToSeconds(2.0 / 16.0, bpm);
+    preDelayL.delayTime.value = delayTimeL;
+    preDelayR.delayTime.value = delayTimeR;
     input.connect(preSplitter);
     preSplitter.connect(preDelayL, 0, 0);
     preSplitter.connect(preDelayR, 1, 0);
@@ -47,16 +48,16 @@ export const pulsarDelay = (context, input, output, bpm) => {
     preDelayR.connect(feedbackMerger, 0, 0);
     const feedbackLowpass = context.createBiquadFilter();
     feedbackLowpass.type = "lowpass";
-    feedbackLowpass.frequency.value = 8000.0;
+    feedbackLowpass.frequency.value = lpf;
     feedbackLowpass.Q.value = -3.0;
     const feedbackHighpass = context.createBiquadFilter();
     feedbackHighpass.type = "highpass";
-    feedbackHighpass.frequency.value = 600.0;
+    feedbackHighpass.frequency.value = hpf;
     feedbackHighpass.Q.value = -3.0;
     const feedbackDelay = context.createDelay();
-    feedbackDelay.delayTime.value = barsToSeconds(1.0 / 16.0, bpm);
+    feedbackDelay.delayTime.value = delayTime;
     const feedbackGain = context.createGain();
-    feedbackGain.gain.value = 0.75;
+    feedbackGain.gain.value = feedback;
     const feedbackSplitter = context.createChannelSplitter(2);
     feedbackMerger
         .connect(feedbackLowpass)
@@ -67,4 +68,5 @@ export const pulsarDelay = (context, input, output, bpm) => {
     feedbackSplitter.connect(feedbackMerger, 0, 1);
     feedbackSplitter.connect(feedbackMerger, 1, 0);
     feedbackGain.connect(output);
+    // TODO return audio-params
 };

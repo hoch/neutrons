@@ -58,5 +58,17 @@ More ideas:
 - Simple XY Frequency + filter > delay > out
 - Wavemap (water) > use for modulation of floating oscillators
 + Do not forget the test.html
-+ Goertzel
+- Goertzel
 - Formant Speech
+
+
+Finalise >>>
+midi-mpk-game.html
+midi-mini-synth.html
+chords.html
+
+Check if we can make it >>>
+goertzel.html
+pitch-detection.html
+growls.html
+test.html

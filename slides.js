@@ -40,6 +40,7 @@ const get_next_slide = () => {
         "growls.html",
         "subject.html#Sequencing",
         "tone-wheels.html",
+        "pulsate.html",
         "euclidean.html",
         "subject.html#Chords",
         "chords.html",

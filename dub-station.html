@@ -11,33 +11,74 @@
         import {SamplePlayer} from "./modules/sample-player.js";
         import {readAudio} from "./modules/standard.js";
         import {Sequencer} from "./modules/sequencing.js";
+        import {barsToSeconds} from "./modules/neutrons.js";
 
         const BPM = 140.0;
         const samples = [
-            {url: "files/ghostsyndicate/GS_FREE4_140_DRUMLOOP_03_HAT.wav", name: "Hihats", duration: 4.0, loop: true, gain: 1.0},
-            {url: "files/ghostsyndicate/GS_FREE4_140_SYNTH_02_Fm.wav", name: "Synth", duration: 4.0, loop: true, gain: 0.5},
-            {url: "files/ghostsyndicate/GS_FREE4_140_BASS_08_Fm.wav", name: "Bass", duration: 4.0, loop: true, gain: 1.0},
-            {url: "files/ghostsyndicate/GS_FREE4_140_DRUMLOOP_03_STP.wav", name: "Kick & Snare", duration: 4.0, loop: true, gain: 1.0},
-            {url: "files/ghostsyndicate/GS_FREE4_140_DRUMLOOP_03_TOP.wav", name: "Icing", duration: 4.0, loop: true, gain: 0.5},
+            {
+                url: "files/ghostsyndicate/GS_FREE4_140_DRUMLOOP_03_HAT.wav",
+                name: "Hihats",
+                duration: 4.0,
+                loop: true,
+                gain: 1.0
+            },
+            {
+                url: "files/ghostsyndicate/GS_FREE4_140_SYNTH_02_Fm.wav",
+                name: "Synth",
+                duration: 4.0,
+                loop: true,
+                gain: 0.5
+            },
+            {
+                url: "files/ghostsyndicate/GS_FREE4_140_BASS_08_Fm.wav",
+                name: "Bass",
+                duration: 4.0,
+                loop: true,
+                gain: 1.0
+            },
+            {
+                url: "files/ghostsyndicate/GS_FREE4_140_DRUMLOOP_03_STP.wav",
+                name: "Kick & Snare",
+                duration: 4.0,
+                loop: true,
+                gain: 1.0
+            },
+            {
+                url: "files/ghostsyndicate/GS_FREE4_140_DRUMLOOP_03_TOP.wav",
+                name: "Icing",
+                duration: 4.0,
+                loop: true,
+                gain: 0.3
+            },
         ];
 
         const context = Policy.newAudioContext();
         const players = context.createGain();
         players.connect(context.destination);
         const sequencer = new Sequencer(() => context.currentTime * 1000.0);
-        const delayInput = context.createGain();
-        const delayOutput = context.createGain();
-        delayOutput.gain.value = 0.7;
-        delayOutput.connect(context.destination);
-        pulsarDelay(context, delayInput, delayOutput, BPM);
+        const effectBusAIn = context.createGain();
+        const effectBusAOut = context.createGain();
+        effectBusAOut.gain.value = 0.7;
+        effectBusAOut.connect(context.destination);
+        const effectBusBIn = context.createGain();
+        const effectBusBOut = context.createGain();
+        effectBusBOut.gain.value = 0.7;
+        effectBusBOut.connect(context.destination);
+        const sq = barsToSeconds(1.0 / 16.0, BPM);
+        const qa = barsToSeconds(2.0 / 16.0, BPM);
+        const s3 = barsToSeconds(3.0 / 16.0, BPM);
+        const s5 = barsToSeconds(4.0 / 16.0, BPM);
+        pulsarDelay(context, effectBusAIn, effectBusAOut, sq, qa, s3, 0.98, 4000.0, 600.0);
+        pulsarDelay(context, effectBusBIn, effectBusBOut, sq, qa, s5 + 0.002, 0.99, 4000.0, 2000.0);
         Promise.all(samples.map(sample => readAudio(context, sample.url)))
             .then(buffers => {
                 for (let i = 0; i < samples.length; i++) {
                     const sample = samples[i];
                     const output = context.createGain();
                     output.connect(players);
-                    const player = new SamplePlayer(context, delayInput, buffers[i], sample.name, sample.duration, sample.loop, sample.gain);
-                    player.running = i === 0;
+                    const player = new SamplePlayer(context, effectBusAIn, effectBusBIn, buffers[i],
+                        sample.name, sample.duration, sample.loop, sample.gain);
+                    player.running = i < 2;
                     sequencer.addProcessor(player.sequencer(output));
                     const domElement = player.domElement;
                     domElement.style.marginBottom = "16px";

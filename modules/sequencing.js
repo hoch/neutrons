@@ -451,7 +451,7 @@ export class Midi {
             onController: (id, unipolar) => console.warn("onController not defined.", id, unipolar)
         };
         for (let input of midi.inputs.values()) {
-            input.onmidimessage = event => {
+            input.addEventListener("midimessage", event => {
                 const data = event.data;
                 if (MidiData.isNoteOn(data)) {
                     events.onNoteOn(MidiData.readNote(data), MidiData.readVelocity(data));
@@ -462,9 +462,15 @@ export class Midi {
                 } else if (MidiData.isController(data)) {
                     events.onController(MidiData.param1(data), MidiData.asValue(data));
                 }
-            };
+            });
         }
         return events;
+    }
+
+    static thru(midi, output) {
+        for (let input of midi.inputs.values()) {
+            input.addEventListener("midimessage", event => output.send(event.data));
+        }
     }
 }
 

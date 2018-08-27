@@ -51,7 +51,7 @@
             wheels.render(context.currentTime, sequencer.bars());
             window.requestAnimationFrame(updateScreen);
         };
-        replaceElement(wheels.domElement, document.querySelector("div#wheels"))
+        replaceElement(wheels.domElement, document.querySelector("div#wheels"));
         updateScreen();
     </script>
 </head>
@@ -60,7 +60,7 @@
     <h1>Klangwerk</h1>
     <h2>Tone Wheels</h2>
 </header>
-<article>
+<article class="center">
     <div id="wheels"></div>
 </article>
 <footer></footer>

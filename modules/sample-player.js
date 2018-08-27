@@ -1,9 +1,8 @@
-import {clamp} from "./standard.js";
+import {clamp, mouse} from "./standard.js";
 import {Fragmentation} from "./sequencing.js";
-import {mouse} from "./standard.js";
 
 export class SamplePlayer {
-    constructor(context, effectBus, buffer, name, duration, loop, gain) {
+    constructor(context, effectBusA, effectBusB, buffer, name, duration, loop, gain) {
         this.context = context;
         this.buffer = buffer;
         this.duration = duration;
@@ -24,31 +23,15 @@ export class SamplePlayer {
         labelName.style.userSelect = "none";
         labelName.textContent = name;
 
-        const effectButton = document.createElement("div");
-        effectButton.textContent = "FX";
-        effectButton.style.textAlign = "center";
-        effectButton.style.fontSize = "12px";
-        effectButton.style.lineHeight = "32px";
-        effectButton.style.width = "32px";
-        effectButton.style.height = "32px";
-        effectButton.style.borderRadius = "16px";
-        effectButton.style.margin = "0 8px";
-        effectButton.style.userSelect = "none";
-        effectButton.style.backgroundColor = "#19404d";
+        this.effectGainA = context.createGain();
+        this.effectGainA.gain.value = 0.0;
+        this.effectGainA.connect(effectBusA);
+        this.effectGainB = context.createGain();
+        this.effectGainB.gain.value = 0.0;
+        this.effectGainB.connect(effectBusB);
 
-        this.effectGain = context.createGain();
-        this.effectGain.gain.value = 0.0;
-        this.effectGain.connect(effectBus);
-        mouse(effectButton, ignore => {
-            effectButton.style.backgroundColor = "#28E5FF";
-            this.effectGain.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.050);
-        }, ignore => {
-        }, ignore => {
-            effectButton.style.backgroundColor = "#19404d";
-            this.effectGain.gain.linearRampToValueAtTime(0.0, context.currentTime + 0.050);
-        });
-
-        this.root.appendChild(effectButton);
+        this.root.appendChild(this.createEffectBusButton("FX A", this.effectGainA.gain));
+        this.root.appendChild(this.createEffectBusButton("FX B", this.effectGainB.gain));
         this.root.appendChild(labelName);
         this.graphics = this.canvas.getContext("2d");
         this.width = NaN;
@@ -74,6 +57,29 @@ export class SamplePlayer {
         window.requestAnimationFrame(update);
     }
 
+    createEffectBusButton(effectBusName, gainParam) {
+        const button = document.createElement("div");
+        button.textContent = effectBusName;
+        button.style.textAlign = "center";
+        button.style.fontSize = "10px";
+        button.style.lineHeight = "32px";
+        button.style.width = "32px";
+        button.style.height = "32px";
+        button.style.borderRadius = "16px";
+        button.style.margin = "0 8px";
+        button.style.userSelect = "none";
+        button.style.backgroundColor = "#19404d";
+        mouse(button, ignore => {
+            button.style.backgroundColor = "#28E5FF";
+            gainParam.linearRampToValueAtTime(1.0, this.context.currentTime + 0.050);
+        }, ignore => {
+        }, ignore => {
+            button.style.backgroundColor = "#19404d";
+            gainParam.linearRampToValueAtTime(0.0, this.context.currentTime + 0.050);
+        });
+        return button;
+    }
+
     toggleRunning() {
         return this.running = !this.running;
     }
@@ -89,7 +95,8 @@ export class SamplePlayer {
             gainNode.gain.value = this.gain;
             source.connect(gainNode);
             gainNode.connect(output);
-            gainNode.connect(this.effectGain);
+            gainNode.connect(this.effectGainA);
+            gainNode.connect(this.effectGainB);
             this.lastStartTime = seconds;
             this.running = this.loop;
         }, this.duration);

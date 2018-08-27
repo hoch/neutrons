@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pulsate</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {replaceElement, readAudio} from "./modules/standard.js";
+        import {midiToFrequency, setTargetWithin} from "./modules/neutrons.js";
+        import {Fragmentation, Sequencer} from "./modules/sequencing.js";
+        import {CollisionPair, Pulsate} from "./modules/pulsate.js";
+        import {echo} from "./modules/effects.js";
+
+        const context = Policy.newAudioContext();
+        const voices = context.createGain();
+        voices.gain.value = 0.1;
+        voices.connect(context.destination);
+        const reverb = context.createConvolver();
+        readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.wav").then(buffer => reverb.buffer = buffer);
+        reverb.connect(context.destination);
+        echo(context, voices, reverb, 0.5, 0.7, 0.4);
+
+        const radiusToNote = (() => {
+            const notes = new Uint32Array([0, 2, 5, 7, 9]);
+            const minRadius = 1.0;
+            const maxRadius = 160.0;
+            return radius => {
+                if (radius < minRadius) {
+                    radius = minRadius;
+                }
+                if (radius > maxRadius) {
+                    radius = maxRadius;
+                }
+                const norm = (radius - minRadius) / (maxRadius - minRadius);
+                const index = Math.floor(36.0 - 36.0 * norm);
+                let o = Math.floor(index / 5);
+                if (o < 4) {
+                    o = 4;
+                }
+                return o * 12 + notes[(index % 5)];
+            }
+        })();
+
+        const pulsate = new Pulsate();
+        const sequencer = new Sequencer(() => context.currentTime * 1000.0);
+        const stepTime = 1.0 / 128.0;
+        const fragmentation = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
+            pulsate.physics.run(stepTime, collision => {
+                if (collision instanceof CollisionPair) {
+                    const startTime = computeStartMillis(position + collision.time) / 1000.0;
+                    const stopTime = startTime + 1.0;
+                    const envelope = context.createGain();
+                    setTargetWithin(envelope.gain, 1.0, 0.0, startTime, stopTime, 0.2);
+                    const oscA = context.createOscillator();
+                    const fA = midiToFrequency(radiusToNote(collision.circleA.radius), 440.0);
+                    const fB = midiToFrequency(radiusToNote(collision.circleB.radius), 440.0);
+                    oscA.frequency.value = fA;
+                    oscA.start(startTime);
+                    oscA.stop(stopTime);
+                    oscA.connect(envelope).connect(voices);
+                    const oscB = context.createOscillator();
+                    oscB.frequency.value = fB;
+                    oscB.start(startTime);
+                    oscB.stop(stopTime);
+                    oscB.connect(envelope).connect(voices);
+                }
+            })
+        }, stepTime);
+        sequencer.addProcessor((computeStartMillis, t0, t1) => fragmentation.equalise(computeStartMillis, t0, t1));
+        sequencer.start();
+
+        const nextFrame = () => {
+            pulsate.update();
+            window.requestAnimationFrame(nextFrame);
+        };
+        window.requestAnimationFrame(nextFrame);
+
+        replaceElement(pulsate.domElement, document.querySelector("div#pulsate"));
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Pulsate</h2>
+</header>
+<article class="center">
+    <div id="pulsate"></div>
+</article>
+<footer></footer>
+</body>
+</html>

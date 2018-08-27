@@ -22,15 +22,11 @@
                 const pianoRoll = new PianoRoll(4);
                 replaceElement(pianoRoll.domElement, document.querySelector("div#piano-roll"));
 
+                Midi.thru(midi, output);
+
                 const events = Midi.mapAllEvents(midi);
-                events.onNoteOn = (note, velocity) => {
-                    pianoRoll.press(note);
-                    output.send(MidiData.noteOn(0, note, velocity * 127.0));
-                };
-                events.onNoteOff = (note) => {
-                    pianoRoll.release(note);
-                    output.send(MidiData.noteOff(0, note));
-                };
+                events.onNoteOn = (note, velocity) => pianoRoll.press(note);
+                events.onNoteOff = (note) => pianoRoll.release(note);
             });
     </script>
 </head>
