@@ -16,6 +16,23 @@ export const echo = (context, input, output, delayTime, feedback, wetLevel) => {
     };
 };
 
+export const flanger = (context, input, output) => {
+    const delayNode = context.createDelay();
+    delayNode.delayTime.value = 0.010;
+    const feedbackGain = context.createGain();
+    feedbackGain.gain.value = 0.9;
+    const wetGain = context.createGain();
+    wetGain.gain.value = 0.5;
+    input.connect(delayNode).connect(feedbackGain).connect(delayNode);
+    feedbackGain.connect(wetGain).connect(output);
+    const depthNode = context.createGain();
+    depthNode.gain.value = 0.001;
+    const oscillatorNode = context.createOscillator();
+    oscillatorNode.frequency.value = 1.0;
+    oscillatorNode.connect(depthNode).connect(delayNode.delayTime);
+    oscillatorNode.start();
+};
+
 export const pulsarDelay = (context, input, output, bpm) => {
     const preSplitter = context.createChannelSplitter(2);
     const preDelayL = context.createDelay();
