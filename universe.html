@@ -50,7 +50,7 @@
 
         const context = Policy.newAudioContext();
         const master = context.createGain();
-        master.gain.value = dbToGain(-15.0);
+        master.gain.value = dbToGain(-12.0);
 
         class Source {
             constructor(index, x, y) {
@@ -113,6 +113,7 @@
                 const audio = new Audio();
                 audio.setAttribute("crossorigin", "");
                 audio.src = "files/track/kepz-shmar.ogg";
+                audio.volume = dbToGain(-3.0);
                 Policy.playAudio(audio);
                 button.remove();
                 const label = document.createElement("h5");
@@ -124,6 +125,7 @@
                 label.style.top = "50%";
                 label.style.left = "50%";
                 label.style.transform = "translate(-50%, -50%)";
+                label.style.userSelect = "none";
                 label.className = "fadein";
                 document.body.appendChild(label);
             };
@@ -131,21 +133,22 @@
 
         let preloaded = false;
         const onPreloaded = (() => {
-            const infoLabel = document.createElement("h5");
-            infoLabel.textContent = "[RENDERING UNIVERSE]";
-            infoLabel.style.color = "#28E5FF";
-            infoLabel.style.fontSize = "64px";
-            infoLabel.style.position = "absolute";
-            infoLabel.style.top = "50%";
-            infoLabel.style.left = "50%";
-            infoLabel.style.transform = "translate(-50%, -50%)";
-            document.body.appendChild(infoLabel);
+            const label = document.createElement("h5");
+            label.textContent = "[RENDERING UNIVERSE]";
+            label.style.color = "#28E5FF";
+            label.style.fontSize = "64px";
+            label.style.position = "absolute";
+            label.style.top = "50%";
+            label.style.left = "50%";
+            label.style.transform = "translate(-50%, -50%)";
+            label.style.userSelect = "none";
+            document.body.appendChild(label);
             return () => {
-                infoLabel.addEventListener("animationend", ignore => {
-                    infoLabel.remove();
+                label.addEventListener("animationend", ignore => {
+                    label.remove();
                     configFinish();
                 });
-                infoLabel.className = "fadeout";
+                label.className = "fadeout";
                 preloaded = true;
             };
         })();
