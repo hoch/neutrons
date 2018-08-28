@@ -11,6 +11,7 @@
         import {readAudio, replaceElement} from "./modules/standard.js";
         import {Sequencer, Fragmentation} from "./modules/sequencing.js";
         import {Exp, Linear} from "./modules/mapping.js";
+        import {Limiter} from "./worklets/Limiter.js";
 
         const context = Policy.newAudioContext();
 
@@ -18,7 +19,6 @@
         lowpass.type = "lowpass";
         const masterGain = context.createGain();
         masterGain.gain.value = 0.0;
-        masterGain.connect(context.destination);
         const oscGain = context.createGain();
         oscGain.gain.value = 0.3;
         const reverb = context.createConvolver();
@@ -62,9 +62,12 @@
         let rideEnabled = false;
         Promise.all([
             readAudio(context, "files/909/bassdrum.ogg"),
-            readAudio(context, "files/909/ride.ogg")
+            readAudio(context, "files/909/ride.ogg"),
+            context.audioWorklet.addModule("./worklets/LimiterProcessor.js")
         ])
             .then(buffers => {
+                const limiter = new Limiter(context);
+                masterGain.connect(limiter).connect(context.destination);
                 const fragmentation = new Fragmentation((computeStartMillis, stepIndex, position) => {
                     if (stepIndex % 4 === 0) {
                         if (kickEnabled) {
