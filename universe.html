@@ -50,7 +50,7 @@
 
         const context = Policy.newAudioContext();
         const master = context.createGain();
-        master.gain.value = dbToGain(-12.0);
+        master.gain.value = dbToGain(-15.0);
 
         class Source {
             constructor(index, x, y) {
@@ -157,7 +157,7 @@
         const numOctaves = 4;
         const compose = Chord.compose(Chord.Minor, 0, 0, numKeys);
         const numFreqs = numKeys * numOctaves;
-        const params = [[30.0, 1.1], [60.0, 1.2], [90.0, 2.8]];
+        const params = [[30.0, 1.1, 0.0], [60.0, 1.2, 0.0], [90.0, 2.8, 0.5]];
         const numBuffers = numFreqs * params.length;
         const frequencies = new Float32Array(numFreqs);
         let index = 0;
@@ -171,14 +171,13 @@
         for (let i = 0; i < numBuffers; i++) {
             buffers[i] = context.createBuffer(1, fftSize, context.sampleRate);
         }
-        const createHarmonics = (bandWidth, bandWidthScale) => {
+        const createHarmonics = (bandWidth, bandWidthScale, notchAmount) => {
             const brightness = -Math.pow(2.0, -0.0);
             const metal = 0.0;
             const distance = 1.0;
             const numHarmonics = 256;
-            const notchAmount = 0.0;
-            const notchFrequency = 0.25;
-            const notchWidth = 128;
+            const notchFrequency = 1.333;
+            const notchWidth = 1024;
             const harmonics = [];
             let i = 0;
             for (; i < numHarmonics; i++) {
