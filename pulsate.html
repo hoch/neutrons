@@ -25,12 +25,11 @@
             const stereoMeter = new StereoMeter(context, 640);
             limiter.connect(stereoMeter).connect(context.destination);
 
-            stereoMeter.domElement.style.position = "absolute";
-            document.body.appendChild(stereoMeter.domElement);
+            stereoMeter.attachToScreen();
 
             const splitter = context.createChannelSplitter(2);
             const voicesGain = context.createGain();
-            voicesGain.gain.value = 0.1;
+            voicesGain.gain.value = 0.2;
             voicesGain.connect(splitter).connect(limiter);
             const reverb = context.createConvolver();
             readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.wav").then(buffer => reverb.buffer = buffer);

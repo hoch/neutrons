@@ -1,4 +1,4 @@
-+ Make goertzel for each sample
++ Flanger
 
 + KickFactory (https://i.ytimg.com/vi/iXMbkwVzi1M/maxresdefault.jpg)
     + Impulse selector

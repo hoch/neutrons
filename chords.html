@@ -5,12 +5,17 @@
     <title>Chords</title>
     <link rel="stylesheet" href="styles.css">
     <script src="slides.js" type="module"></script>
+    <style>
+        form > label {
+            min-width: 24px;
+        }
+    </style>
     <script type="module">
         import {Policy} from "./modules/policy.js";
         import {PadSynth, PadWorker} from "./worklets/PadSynth.js";
         import {Chord} from "./modules/chord.js";
         import {PianoRoll} from "./modules/piano-roll.js";
-        import {replaceElement} from "./modules/standard.js";
+        import {replaceElement, createRadioGroup} from "./modules/standard.js";
 
         // http://i.imgur.com/wTpnp.jpg
 
@@ -18,9 +23,36 @@
         const sampleRate = context.sampleRate;
         const pianoRoll = new PianoRoll(2);
 
+        const formScale = document.querySelector("form#scale");
+        const groupScale = createRadioGroup(formScale, "scale");
+        groupScale(true, "Major");
+        groupScale(false, "Minor");
+
+        const formNote = document.querySelector("form#note");
+        const groupNote = createRadioGroup(formNote, "note");
+        groupNote(true, "C", 0);
+        groupNote(false, "C#", 1);
+        groupNote(false, "D", 2);
+        groupNote(false, "D#", 3);
+        groupNote(false, "E", 4);
+        groupNote(false, "F", 5);
+        groupNote(false, "F#", 6);
+        groupNote(false, "G", 7);
+        groupNote(false, "G#", 8);
+        groupNote(false, "A", 9);
+        groupNote(false, "A#", 11);
+        groupNote(false, "B", 12);
+
+        const formNumNotes = document.querySelector("form#num-notes");
+        const groupNumNotes = createRadioGroup(formNumNotes, "num");
+        groupNumNotes(true, "3");
+        groupNumNotes(false, "4");
+        groupNumNotes(false, "5");
+        groupNumNotes(false, "6");
+        groupNumNotes(false, "7");
+
         const getScale = () => {
-            return document.querySelector("input[name=scale]:checked")
-                .value === "major" ? Chord.Major : Chord.Minor;
+            return formScale.scale.value === "Major" ? Chord.Major : Chord.Minor;
         };
 
         Promise.all([
@@ -41,8 +73,8 @@
                 if (event.repeat || event.shift || event.altKey || event.ctrlKey || event.metaKey) {
                     return;
                 }
-                const rootKey = parseInt(document.querySelector("select[rootKey]").value, 10);
-                const numNotes = parseInt(document.querySelector("select[numNotes]").value, 10);
+                const rootKey = parseInt(formNote.note.value, 10);
+                const numNotes = parseInt(formNumNotes.num.value, 10);
 
                 const variation = event.keyCode - 49;
                 if (0 <= variation && variation < 9) {
@@ -78,36 +110,10 @@
 </header>
 <article class="center">
     <div>
-        <div>
-            <input type="radio" id="major"
-                   name="scale" value="major" checked>
-            <label for="major">Major</label>
-            <input type="radio" id="minor"
-                   name="scale" value="minor">
-            <label for="minor">Minor</label>
-        </div>
-        <div>
-            <select rootKey>
-                <option value=0 selected>C</option>
-                <option value=1>C#</option>
-                <option value=2>D</option>
-                <option value=3">D#</option>
-                <option value=4>E</option>
-                <option value=5>F</option>
-                <option value=6>F#</option>
-                <option value=7>G</option>
-                <option value=8>G#</option>
-                <option value=9>A</option>
-                <option value=10>A#</option>
-                <option value=11>B</option>
-            </select>
-            <select numNotes>
-                <option value=3 selected>3</option>
-                <option value=4>4</option>
-                <option value=5>5</option>
-                <option value=6">6</option>
-                <option value=7>7</option>
-            </select>
+        <div style="display: flex; justify-content: space-between;">
+            <form id="scale"></form>
+            <form id="note"></form>
+            <form id="num-notes"></form>
         </div>
         <p>Press 1, 2, 3, 4, 5, 6, 7 [, 8, 9] to play all chord-progressions. The piano-roll is just a preview - not
             interactive!</p>

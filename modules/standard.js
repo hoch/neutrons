@@ -208,6 +208,23 @@ export const beep = (context, startTime, frequency) => {
     oscillator.connect(gainNode);
     gainNode.connect(context.destination);
 };
+export const createRadioButton = (parent, name, checked, labelText, value) => {
+    const checkbox = document.createElement("input");
+    checkbox.setAttribute("type", "radio");
+    checkbox.checked = checked;
+    checkbox.name = name;
+    checkbox.value = undefined === value ? labelText : value;
+    const id = uid();
+    checkbox.id = id;
+    const label = document.createElement("label");
+    562333235
+    label.setAttribute("for", id);
+    label.textContent = labelText;
+    parent.appendChild(checkbox);
+    parent.appendChild(label);
+    return checkbox;
+};
+export const createRadioGroup = (form, name) => (checked, labelText, value) => createRadioButton(form, name, checked, labelText, value);
 export const nextPow2 = n => {
     let m = n;
     let i;
