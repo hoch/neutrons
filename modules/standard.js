@@ -82,6 +82,10 @@ export const hsla = (hue, saturation, lightness, alpha) => {
     b = Math.round(255.0 * HueToRGB(m1, m2, hue - (1.0 / 3.0)));
     return "rgba(" + r + ", " + g + ", " + b + ", " + alpha + ")";
 };
+export const quadraticBezier = (p0, p1, p2, t) => {
+    const omt = 1.0 - t;
+    return p0 * omt * omt + p1 * 2.0 * omt * t + p2 * t * t;
+};
 export const replaceElement = (source, target) => {
     target.parentNode.replaceChild(source, target);
     for (let clazz of target.classList) {

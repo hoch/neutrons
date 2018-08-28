@@ -51,8 +51,7 @@ const get_next_slide = () => {
         "scratch.html",
         "loop-station.html",
         "circle-modulation.html",
-        "universe.html",
-        "thanks.html"
+        "universe.html"
     ];
     const path = document.location.href;
     const qIndex = path.lastIndexOf("?");

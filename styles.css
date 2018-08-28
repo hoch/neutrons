@@ -54,6 +54,7 @@ body header h2 {
 body article {
   width: 100%;
   flex: 1;
+  position: relative;
 }
 body article.center {
   display: flex;

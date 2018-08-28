@@ -5,7 +5,17 @@
     <title>Universe</title>
     <link rel="stylesheet" href="styles.css">
     <script src="slides.js" type="module"></script>
+    <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Amatic+SC"/>
     <style>
+        @keyframes fadein {
+            0% {
+                opacity: 0.0;
+            }
+            100% {
+                opacity: 1.0;
+            }
+        }
+
         @keyframes fadeout {
             0% {
                 opacity: 1.0;
@@ -13,6 +23,13 @@
             100% {
                 opacity: 0.0;
             }
+        }
+
+        .fadein {
+            opacity: 1.0;
+            animation-name: fadein;
+            animation-duration: 2s;
+            animation-timing-function: ease-out;
         }
 
         .fadeout {
@@ -25,7 +42,7 @@
     <script type="module">
         import {Policy} from "./modules/policy.js";
         import {Chord} from "./modules/chord.js";
-        import {readAudio, mouse, hsla} from "./modules/standard.js";
+        import {readAudio, mouse, hsla, quadraticBezier} from "./modules/standard.js";
         import {echo} from "./modules/effects.js";
         import {midiToFrequency, dbToGain} from "./modules/neutrons.js";
         import {Exp} from "./modules/mapping.js";
@@ -33,7 +50,7 @@
 
         const context = Policy.newAudioContext();
         const master = context.createGain();
-        master.gain.value = dbToGain(-12);
+        master.gain.value = dbToGain(-15.0);
 
         class Source {
             constructor(index, x, y) {
@@ -89,6 +106,30 @@
             }
         }
 
+        const configFinish = () => {
+            const button = document.querySelector("button");
+            button.style.display = "inline";
+            button.onclick = ignore => {
+                const audio = new Audio();
+                audio.setAttribute("crossorigin", "");
+                audio.src = "files/track/kepz-shmar.ogg";
+                Policy.playAudio(audio);
+                button.remove();
+                const label = document.createElement("h5");
+                label.style.fontFamily = "Amatic SC";
+                label.textContent = "Thank You!";
+                label.style.color = "#28E5FF";
+                label.style.fontSize = "160px";
+                label.style.position = "absolute";
+                label.style.top = "50%";
+                label.style.left = "50%";
+                label.style.transform = "translate(-50%, -50%)";
+                label.className = "fadein";
+                document.body.appendChild(label);
+            };
+        };
+
+        let preloaded = false;
         const onPreloaded = (() => {
             const infoLabel = document.createElement("h5");
             infoLabel.textContent = "[RENDERING UNIVERSE]";
@@ -100,12 +141,16 @@
             infoLabel.style.transform = "translate(-50%, -50%)";
             document.body.appendChild(infoLabel);
             return () => {
-                infoLabel.addEventListener("animationend", ignore => infoLabel.remove());
+                infoLabel.addEventListener("animationend", ignore => {
+                    infoLabel.remove();
+                    configFinish();
+                });
                 infoLabel.className = "fadeout";
+                preloaded = true;
             };
         })();
 
-        const numKeys = 5;
+        const numKeys = 6;
         const numOctaves = 4;
         const compose = Chord.compose(Chord.Minor, 0, 0, numKeys);
         const numFreqs = numKeys * numOctaves;
@@ -118,7 +163,7 @@
                 frequencies[index++] = midiToFrequency((3 + octave) * 12 + key, 400.0);
             }
         }
-        const fftSize = 1 << 16;
+        const fftSize = 1 << 17;
         const buffers = [];
         for (let i = 0; i < numBuffers; i++) {
             buffers[i] = context.createBuffer(1, fftSize, context.sampleRate);
@@ -190,8 +235,32 @@
             sources.push(new Source(i, x, height * 0.5 + y));
         }
 
-        let px = 0.0, py = 0.0, pf = 0 | 0, down = false, loupePhase = 0.0;
+        const numNodes = 128;
+        const numCircles = 6;
+        const nodes = [];
+        const beziers = [];
+        for (let i = 0; i < numNodes; i++) {
+            const angle = i / numNodes * 2.0 * Math.PI * numCircles;
+            const radius = height * 0.05 + height * 0.45 * Math.random();
+            nodes[i] = {x: -Math.cos(angle) * radius, y: height * 0.5 + Math.sin(angle) * radius};
+        }
+        for (let i = 0; i < nodes.length; i++) {
+            const n0 = nodes[i % nodes.length];
+            const n1 = nodes[(i + 1) % nodes.length];
+            const n2 = nodes[(i + 2) % nodes.length];
+            beziers[i] = {
+                x0: (n0.x + n1.x) * 0.5,
+                y0: (n0.y + n1.y) * 0.5,
+                x1: n1.x,
+                y1: n1.y,
+                x2: (n1.x + n2.x) * 0.5,
+                y2: (n1.y + n2.y) * 0.5
+            };
+        }
+
+        let px = 0.0, py = 0.0, pf = 0 | 0, down = false, loupePhase = 0.0, bezierPhase = 0.0;
         const render = () => {
+            const auto = document.querySelector("input#auto").checked;
             if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
                 width = canvas.width = canvas.clientWidth;
                 height = canvas.height = canvas.clientHeight;
@@ -203,19 +272,49 @@
             graphics.globalCompositeOperation = "lighter";
             graphics.save();
             graphics.translate(width * 0.5, 0.0);
-            if (down) {
-                if (pf < 120) {
-                    pf++;
+            if (auto) {
+                graphics.beginPath();
+                graphics.lineWidth = 2.0;
+                graphics.strokeStyle = "rgb(3, 4, 5)";
+                for (let i = 0; i < beziers.length; i++) {
+                    const bezier = beziers[i];
+                    graphics.moveTo(bezier.x0, bezier.y0);
+                    graphics.quadraticCurveTo(bezier.x1, bezier.y1, bezier.x2, bezier.y2);
                 }
-            } else {
-                if (pf > 0) {
-                    pf--;
+                graphics.closePath();
+                graphics.stroke();
+                const bezierIndex = bezierPhase * beziers.length;
+                const bezierIndexInt = Math.floor(bezierIndex);
+                const bezier = beziers[bezierIndexInt];
+                const bezierAlpha = bezierIndex - bezierIndexInt;
+                px = quadraticBezier(bezier.x0, bezier.x1, bezier.x2, bezierAlpha);
+                py = quadraticBezier(bezier.y0, bezier.y1, bezier.y2, bezierAlpha);
+                graphics.beginPath();
+                graphics.fillStyle = "white";
+                graphics.arc(px, py, 1.5, 0.0, 2.0 * Math.PI, false);
+                graphics.fill();
+                bezierPhase += 0.00004;
+                bezierPhase -= Math.floor(bezierPhase);
+            }
+            if (preloaded) {
+                if (down || auto) {
+                    if (pf < 120) {
+                        pf++;
+                    }
+                } else {
+                    if (pf > 0) {
+                        pf--;
+                    }
                 }
             }
             const pr = Math.pow(pf / 120.0, 2.0) * 100.0;
-            if (down) {
+            if (down || auto) {
                 graphics.beginPath();
-                graphics.strokeStyle = "rgba(255, 255, 255, 0.06)";
+                graphics.fillStyle = "black";
+                graphics.arc(px, py, pr, 0.0, 2.0 * Math.PI, false);
+                graphics.fill();
+                graphics.beginPath();
+                graphics.strokeStyle = "rgb(40, 229, 255, 0.06)";
                 graphics.arc(px + Math.cos(loupePhase) * 1.8, py + Math.sin(loupePhase) * 1.8, pr, 0.0, 2.0 * Math.PI, false);
                 graphics.stroke();
                 loupePhase += (2.0 * Math.PI) * 0.21;
@@ -305,6 +404,11 @@
     background: url(images/space.jpg) no-repeat;
     border-radius: 16px;">
     </canvas>
+    <div style="position: absolute; top: 8px; left: 8px;">
+        <input type="checkbox" id="auto">
+        <label for="auto">Auto</label>
+        <button style="display: none;">Finish</button>
+    </div>
 </article>
 <footer></footer>
 </body>
