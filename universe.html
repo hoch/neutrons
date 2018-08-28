@@ -75,6 +75,7 @@
                     this.oscillator = context.createBufferSource();
                     this.oscillator.buffer = this.buffer;
                     this.oscillator.loop = true;
+                    this.oscillator.detune.value = (Math.random() - Math.random()) * 14.0; // cents
                     this.oscillator.start();
                     this.filter = context.createBiquadFilter();
                     this.filter.type = "peaking";
@@ -157,7 +158,7 @@
         const numOctaves = 4;
         const compose = Chord.compose(Chord.Minor, 0, 0, numKeys);
         const numFreqs = numKeys * numOctaves;
-        const params = [[30.0, 1.1, 0.0], [60.0, 1.2, 0.0], [90.0, 2.8, 0.5]];
+        const params = [[30.0, 1.1, 0.0], [60.0, 1.2, 0.0], [90.0, 2.8, 0.5], [120.0, 1.2, 0.25]];
         const numBuffers = numFreqs * params.length;
         const frequencies = new Float32Array(numFreqs);
         let index = 0;
@@ -176,7 +177,7 @@
             const metal = 0.0;
             const distance = 1.0;
             const numHarmonics = 256;
-            const notchFrequency = 1.333;
+            const notchFrequency = 0.333;
             const notchWidth = 1024;
             const harmonics = [];
             let i = 0;
@@ -268,7 +269,7 @@
                 height = canvas.height = canvas.clientHeight;
             } else {
                 graphics.globalCompositeOperation = "destination-out";
-                graphics.fillStyle = "rgba(255, 255, 255, 0.09)";
+                graphics.fillStyle = "rgba(255, 255, 255, 0.2)";
                 graphics.fillRect(0, 0, width, height);
             }
             graphics.globalCompositeOperation = "lighter";
