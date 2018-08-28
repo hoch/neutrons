@@ -5,6 +5,23 @@
     <title>Universe</title>
     <link rel="stylesheet" href="styles.css">
     <script src="slides.js" type="module"></script>
+    <style>
+        @keyframes fadeout {
+            0% {
+                opacity: 1.0;
+            }
+            100% {
+                opacity: 0.0;
+            }
+        }
+
+        .fadeout {
+            opacity: 1.0;
+            animation-name: fadeout;
+            animation-duration: 1s;
+            animation-timing-function: ease-in;
+        }
+    </style>
     <script type="module">
         import {Policy} from "./modules/policy.js";
         import {Chord} from "./modules/chord.js";
@@ -76,12 +93,16 @@
             const infoLabel = document.createElement("h5");
             infoLabel.textContent = "[RENDERING UNIVERSE]";
             infoLabel.style.color = "#28E5FF";
+            infoLabel.style.fontSize = "64px";
             infoLabel.style.position = "absolute";
             infoLabel.style.top = "50%";
             infoLabel.style.left = "50%";
             infoLabel.style.transform = "translate(-50%, -50%)";
             document.body.appendChild(infoLabel);
-            return () => infoLabel.remove();
+            return () => {
+                infoLabel.addEventListener("animationend", ignore => infoLabel.remove());
+                infoLabel.className = "fadeout";
+            };
         })();
 
         const numKeys = 5;
@@ -277,9 +298,13 @@
     <h2>Universe</h2>
 </header>
 <article class="center">
-    <div style="width: 100%; height: 100%; background-size: cover; background: url(images/space.jpg) no-repeat; border-radius: 16px;">
-        <canvas></canvas>
-    </div>
+    <canvas style="
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background: url(images/space.jpg) no-repeat;
+    border-radius: 16px;">
+    </canvas>
 </article>
 <footer></footer>
 </body>
