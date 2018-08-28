@@ -15,7 +15,7 @@
 
         const context = Policy.newAudioContext();
 
-        const pattern = ScratchPattern.TwiddleExample;
+        const pattern = ScratchPattern.TearExample;
         console.log("scratchesDuration", pattern.scratchesDuration);
         console.log("fadesDuration", pattern.fadesDuration);
 
@@ -44,21 +44,24 @@
         Promise.all([
             readAudio(context, "files/scratch/ah-yeah.ogg"),
             // readAudio(context, "files/scratch/scratch.ogg"),
-            // readAudio(context, "files/loops/beat-with-bass-100bpm.ogg"),
-            readAudio(context, "files/loops/hiphop-drum-loop-120bpm.ogg"),
+            // readAudio(context, "files/loops/hiphop-drum-loop-120bpm.ogg"),
+            readAudio(context, "files/loops/hard-hitter-drum-loop.ogg"),
             context.audioWorklet.addModule("./worklets/ScratchProcessor.js"),
         ]).then(results => {
-            const loopTempo = 120.0;
+            const loopTempo = 150.0;
             const scratchNode = new Scratch(context);
             scratchNode.bpm(loopTempo);
             scratchNode.sample(results[0], 0.0, 1.0);
-            scratchNode.connect(context.destination);
+            const scratchGain = context.createGain();
+            scratchGain.gain.value = 0.5;
+            scratchNode.connect(scratchGain);
+            scratchGain.connect(context.destination);
             scratchNode.port.onmessage = event => plotPositions.setCursor(event.data * 4096);
 
             const sequencer = new Sequencer(() => context.currentTime * 1000.0);
             const fragmentation = new Fragmentation((computeStartMillis, stepIndex, position) => {
                 const seconds = computeStartMillis(position) / 1000.0;
-                if (stepIndex % 64 === 0) {
+                if (stepIndex % 128 === 0) {
                     const bufferSource = context.createBufferSource();
                     bufferSource.buffer = results[1];
                     bufferSource.start(seconds);

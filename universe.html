@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Universe</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Chord} from "./modules/chord.js";
+        import {readAudio, mouse, hsla} from "./modules/standard.js";
+        import {echo} from "./modules/effects.js";
+        import {midiToFrequency, dbToGain} from "./modules/neutrons.js";
+        import {Exp} from "./modules/mapping.js";
+        import {Limiter} from "./worklets/Limiter.js";
+
+        const context = Policy.newAudioContext();
+        const master = context.createGain();
+        master.gain.value = dbToGain(-12);
+
+        class Source {
+            constructor(index, x, y) {
+                this.index = index;
+                this.x = x;
+                this.y = y;
+
+                this.envelope = null;
+                this.oscillator = null;
+                this.color = hsla(Math.random(), 0.75, 0.75, 1.0);
+                this.buffer = buffers[this.index % numBuffers];
+                this.inside = false;
+                this.fltMap = new Exp(20, 20000);
+            }
+
+            update(inside, gain, x, y) {
+                if (!this.inside && inside) {
+                    this.envelope = context.createGain();
+                    this.envelope.gain.value = gain;
+                    this.panner = context.createStereoPanner();
+                    this.panner.pan.value = x;
+                    this.oscillator = context.createBufferSource();
+                    this.oscillator.buffer = this.buffer;
+                    this.oscillator.loop = true;
+                    this.oscillator.start();
+                    this.filter = context.createBiquadFilter();
+                    this.filter.type = "peaking";
+                    this.filter.gain.value = 20.0;
+                    this.filter.frequency.value = this.fltMap.y((y + 1.0) * 0.5);
+                    this.oscillator.connect(this.filter).connect(this.envelope).connect(this.panner).connect(master);
+                    this.inside = true;
+                }
+                if (this.inside) {
+                    if (inside) {
+                        const time = context.currentTime + 0.016;
+                        this.envelope.gain.linearRampToValueAtTime(gain, time);
+                        this.panner.pan.linearRampToValueAtTime(x, time);
+                        this.filter.frequency.exponentialRampToValueAtTime(this.fltMap.y((y + 1.0) * 0.5), time);
+                    } else {
+                        const endTime = context.currentTime + 0.016;
+                        this.envelope.gain.linearRampToValueAtTime(0.0, endTime);
+                        this.oscillator.stop(endTime);
+                    }
+                    this.inside = inside;
+                }
+            }
+
+            createGradient(context, x, y, r) {
+                const gradient = context.createRadialGradient(x, y, 0, x, y, r);
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(1, "black");
+                return gradient;
+            }
+        }
+
+        const onPreloaded = (() => {
+            const infoLabel = document.createElement("h5");
+            infoLabel.textContent = "[RENDERING UNIVERSE]";
+            infoLabel.style.color = "#28E5FF";
+            infoLabel.style.position = "absolute";
+            infoLabel.style.top = "50%";
+            infoLabel.style.left = "50%";
+            infoLabel.style.transform = "translate(-50%, -50%)";
+            document.body.appendChild(infoLabel);
+            return () => infoLabel.remove();
+        })();
+
+        const numKeys = 5;
+        const numOctaves = 4;
+        const compose = Chord.compose(Chord.Minor, 0, 0, numKeys);
+        const numFreqs = numKeys * numOctaves;
+        const params = [[30.0, 1.1], [60.0, 1.2], [90.0, 2.8]];
+        const numBuffers = numFreqs * params.length;
+        const frequencies = new Float32Array(numFreqs);
+        let index = 0;
+        for (let octave = 0; octave < numOctaves; octave++) {
+            for (let key of compose) {
+                frequencies[index++] = midiToFrequency((3 + octave) * 12 + key, 400.0);
+            }
+        }
+        const fftSize = 1 << 16;
+        const buffers = [];
+        for (let i = 0; i < numBuffers; i++) {
+            buffers[i] = context.createBuffer(1, fftSize, context.sampleRate);
+        }
+        const createHarmonics = (bandWidth, bandWidthScale) => {
+            const brightness = -Math.pow(2.0, -0.0);
+            const metal = 0.0;
+            const distance = 1.0;
+            const numHarmonics = 256;
+            const notchAmount = 0.0;
+            const notchFrequency = 0.25;
+            const notchWidth = 128;
+            const harmonics = [];
+            let i = 0;
+            for (; i < numHarmonics; i++) {
+                const position = i * distance + 1;
+                const level = Math.pow(position, brightness);
+                const bw = (Math.pow(2.0, bandWidth / 1200.0) - 1.0) * Math.pow(position, bandWidthScale);
+                const metalOffset = (Math.sin(i) * metal * i) * (8.0 / numHarmonics);
+                const notchLevel = notchAmount * Math.pow(Math.cos(i * notchFrequency * Math.PI), notchWidth * 2) + (1.0 - notchAmount);
+                harmonics.push({
+                    position: position + metalOffset,
+                    level: level * notchLevel,
+                    bandWidth: bw,
+                    active: true
+                });
+            }
+            return harmonics;
+        };
+        const createWavetables = (() => {
+            const worker = new Worker("./workers/pad.js");
+            const tasks = [];
+            worker.postMessage({
+                action: "init",
+                value: {fftSize: fftSize, sampleRate: context.sampleRate, frequencies: frequencies}
+            });
+            worker.onmessage = event => {
+                if (0 < tasks.length) {
+                    tasks.shift()(event.data);
+                } else {
+                    throw new Error("Got message, but nothing was requested.");
+                }
+            };
+            return (harmonics) => {
+                return new Promise((resolve, ignore) => {
+                    tasks.push(resolve);
+                    worker.postMessage({
+                        action: "update",
+                        value: harmonics
+                    });
+                });
+            }
+        })();
+
+        const canvas = document.querySelector("canvas");
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        const graphics = canvas.getContext("2d");
+
+        let width = canvas.width = canvas.clientWidth;
+        let height = canvas.height = canvas.clientHeight;
+
+        const sources = [];
+        for (let i = 0; i < numBuffers * 2; i++) {
+            const radius = (1.0 - Math.random() * Math.random()) * height * 0.45; // 90%
+            const angle = Math.random() * 2.0 * Math.PI;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            sources.push(new Source(i, x, height * 0.5 + y));
+        }
+
+        let px = 0.0, py = 0.0, pf = 0 | 0, down = false, loupePhase = 0.0;
+        const render = () => {
+            if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+                width = canvas.width = canvas.clientWidth;
+                height = canvas.height = canvas.clientHeight;
+            } else {
+                graphics.globalCompositeOperation = "destination-out";
+                graphics.fillStyle = "rgba(255, 255, 255, 0.09)";
+                graphics.fillRect(0, 0, width, height);
+            }
+            graphics.globalCompositeOperation = "lighter";
+            graphics.save();
+            graphics.translate(width * 0.5, 0.0);
+            if (down) {
+                if (pf < 120) {
+                    pf++;
+                }
+            } else {
+                if (pf > 0) {
+                    pf--;
+                }
+            }
+            const pr = Math.pow(pf / 120.0, 2.0) * 100.0;
+            if (down) {
+                graphics.beginPath();
+                graphics.strokeStyle = "rgba(255, 255, 255, 0.06)";
+                graphics.arc(px + Math.cos(loupePhase) * 1.8, py + Math.sin(loupePhase) * 1.8, pr, 0.0, 2.0 * Math.PI, false);
+                graphics.stroke();
+                loupePhase += (2.0 * Math.PI) * 0.21;
+            }
+            for (let i = 0; i < sources.length; i++) {
+                const source = sources[i];
+                const dx = source.x - px;
+                const dy = source.y - py;
+                const mg = Math.sqrt(dx * dx + dy * dy);
+                const inside = mg < pr;
+                if (inside) {
+                    const dist = Math.pow((pr - mg) / pr, 2.0);
+                    const nx = dx * (1.0 + dist) / pr;
+                    const ny = dy * (1.0 + dist) / pr;
+                    const cx = px + dx * (1.0 + dist);
+                    const cy = py + dy * (1.0 + dist);
+                    const cr = Math.max(1.2, dist * pr);
+                    graphics.beginPath();
+                    graphics.fillStyle = source.createGradient(graphics, cx, cy, cr);
+                    graphics.arc(cx, cy, cr, 0.0, 2.0 * Math.PI, false);
+                    graphics.fill();
+                    source.update(true, dist, nx, ny);
+                }
+                else {
+                    graphics.beginPath();
+                    graphics.fillStyle = "white";
+                    graphics.arc(source.x, source.y, 0.5, 0.0, 2.0 * Math.PI, false);
+                    graphics.fill();
+                    source.update(false);
+                }
+            }
+            graphics.restore();
+            window.requestAnimationFrame(render);
+        };
+        render();
+
+        let write = 0;
+        Promise.all(params.map(p => createWavetables(createHarmonics.apply(null, p))))
+            .then(results => {
+                for (let j = 0; j < results.length; j++) {
+                    const tables = results[j];
+                    for (let i = 0; i < tables.length; i++) {
+                        buffers[write++].copyToChannel(tables[i], 0, 0);
+                    }
+                }
+            })
+            .then(() => {
+                Promise.all([
+                    readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.wav"),
+                    context.audioWorklet.addModule("./worklets/LimiterProcessor.js")
+                ]).then(results => {
+                    const convolver = context.createConvolver();
+                    convolver.buffer = results[0];
+                    echo(context, master, convolver, 0.5, 0.3, 1.0);
+                    const limiter = new Limiter(context);
+                    master.connect(limiter);
+                    convolver.connect(limiter);
+                    limiter.connect(context.destination);
+
+                    const updatePointer = event => {
+                        const rect = canvas.getBoundingClientRect();
+                        px = event.clientX - rect.x - rect.width * 0.5;
+                        py = event.clientY - rect.y;
+                    };
+                    mouse(canvas,
+                        event => {
+                            updatePointer(event);
+                            down = true;
+                        },
+                        event => updatePointer(event),
+                        ignore => down = false);
+                });
+                onPreloaded();
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Universe</h2>
+</header>
+<article class="center">
+    <div style="width: 100%; height: 100%; background-size: cover; background: url(images/space.jpg) no-repeat; border-radius: 16px;">
+        <canvas></canvas>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

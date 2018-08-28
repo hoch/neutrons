@@ -33,7 +33,7 @@ export class StereoMeter extends AudioWorkletNode {
         this.canvas = document.createElement("canvas");
         this.canvas.style.width = this.width + "px";
         this.canvas.style.height = this.height + "px";
-        this.canvas.style.backgroundColor = "rgba(40,40,40)";
+        this.canvas.style.backgroundColor = "rgba(30,30,30)";
         this.canvas.style.borderRadius = "3px";
         this.graphics = this.canvas.getContext("2d");
 
@@ -68,6 +68,13 @@ export class StereoMeter extends AudioWorkletNode {
 
     get domElement() {
         return this.canvas;
+    }
+
+    attachToScreen() {
+        this.domElement.style.position = "absolute";
+        this.domElement.style.top = "112px";
+        this.domElement.style.right = "48px";
+        document.body.appendChild(this.domElement);
     }
 
     update() {

@@ -53,6 +53,18 @@ export const hermiteNonPow2 = (x, phase, n) => {
     const c = (x1 - xm1) * 0.5;
     return (((a * alpha) + b) * alpha + c) * alpha + x0;
 };
+export const hermiteNonPow2NonCircle = (x, phase, n) => {
+    let idx = phase | 0;
+    const alpha = phase - idx;
+    const xm1 = x[idx];
+    const x0 = ++idx >= n ? 0.0: x[idx];
+    const x1 = ++idx >= n ? 0.0: x[idx];
+    const x2 = ++idx >= n ? 0.0: x[idx];
+    const a = (3.0 * (x0 - x1) - xm1 + x2) * 0.5;
+    const b = 2.0 * x1 + xm1 - (5.0 * x0 + x2) * 0.5;
+    const c = (x1 - xm1) * 0.5;
+    return (((a * alpha) + b) * alpha + c) * alpha + x0;
+};
 export const linkwitzRileyLowHiCoeffs = (fc, sf) => {
     const wc = 2 * Math.PI * fc;
     const wc2 = wc * wc;

@@ -1,4 +1,4 @@
-import {RenderQuantum, EventReceiver, barsToSeconds} from "../modules/neutrons.js";
+import {RenderQuantum, EventReceiver, barsToSeconds, hermiteNonPow2NonCircle} from "../modules/neutrons.js";
 import {ScratchPattern} from "../modules/scratching.js";
 
 class PlayEvent {
@@ -41,17 +41,18 @@ registerProcessor("Scratch", class extends AudioWorkletProcessor {
                 const bufCh1 = buffer.channels[1];
                 const outCh0 = output[0];
                 const outCh1 = output[1];
+                const length = this.buffer.length;
                 const scratchesDuration = this.pattern.scratchesDuration;
                 for (let i = from; i < to; i++) {
                     const fade = this.pattern.getFade(this.time);
-                    const position = this.pattern.getPos(this.time) * 0.5; // 0.5 TODO make pattern property
+                    const position = this.pattern.getPos(this.time);
                     const local = this.from + position * (this.to - this.from);
-                    const sf = local * (this.buffer.length - 1);
-                    const si = sf | 0;
-                    const sa = sf - si;
-                    this.gain = fade + this.coeff * (this.gain - fade);
-                    outCh0[i] = (bufCh0[si] + sa * (bufCh0[si + 1] - bufCh0[si])) * this.gain * 0.5;
-                    outCh1[i] = (bufCh1[si] + sa * (bufCh1[si + 1] - bufCh1[si])) * this.gain * 0.5;
+                    if (local < 1.0) {
+                        const phase = local * (length - 1);
+                        this.gain = fade + this.coeff * (this.gain - fade);
+                        outCh0[i] = hermiteNonPow2NonCircle(bufCh0, phase, length) * this.gain;
+                        outCh1[i] = hermiteNonPow2NonCircle(bufCh1, phase, length) * this.gain;
+                    }
                     this.time += this.velocity;
                     if (this.time >= scratchesDuration) {
                         this.pattern = null;
