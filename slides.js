@@ -74,7 +74,7 @@ export const next_slide = (() => {
     }
     const footer = document.querySelector("footer");
     if (footer !== null) {
-        footer.textContent = "❤︎";
+        footer.textContent = "https://github.com/andremichelle/neutrons/︎";
     }
 
     const href = get_next_slide();

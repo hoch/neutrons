@@ -51,7 +51,7 @@
                 appendDevices(midi.outputs.values(), "→");
                 setInterval(() => {
                     for (let entry of actives) {
-                        if (performance.now() > entry[1] + 1000) {
+                        if (performance.now() > entry[1] + 250) {
                             entry[0].classList.remove("default");
                             actives.delete(entry[0]);
                         }

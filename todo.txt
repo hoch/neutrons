@@ -1,27 +1,11 @@
-+ Environment
-    - Create Warning if not Chrome
-    - Create Next-Arrow in presentation mode (hashcode)
-    + github and git.io? to present html
-    ^ > https://stackoverflow.com/questions/8446218/how-to-see-an-html-page-on-github-as-a-normal-rendered-html-page-to-see-preview
++ Make goertzel for each sample
+
 + KickFactory (https://i.ytimg.com/vi/iXMbkwVzi1M/maxresdefault.jpg)
-    - Increment-exponential envelopes (Create AudioWorklet)
-    - Pitch / Gain domain
-    - Partials
-    - Clicks
-    - Delayed Reverb
     + Impulse selector
-- Convolution
-- Biquad Graphical EQ
+
 + VoiceFreezer
     + Capture multiple periods and create a PeriodicWave (simple)
     + Also create a large pad by adding voices to chords (many voices)
-- Buildup overtones to approach classical waveforms
-- Karplus-Strong Algorithm
-+ Debug waa-automation
-+ Debug waa-setup graph
-+ Ambient sounds > https://ptsjs.org/demo/?name=circle.withinBound
-- Arpeggio
-+ Spectrum and Waveform Display
 
 Additional Information Slides
 + Explain all waa modules / https://www.w3.org/TR/webaudio/#enumdef-channelcountmode
@@ -31,42 +15,12 @@ Additional Information Slides
 + Weird Parameter API
 + decodeAudioData does not return promise
 
-Misc
-- https://codepen.io/andremichelle/pen/LVzMRz (Fourier Series)
-+ https://codepen.io/andremichelle/pen/odypj (Code 7 for AudioWorklet)
-+ 303 + 808 AcidFactory?
-
 Interesting links:
 + https://gist.github.com/chrisguttandin/e49764f9c29376780f2eb1f7d22b54e4
 + https://stackoverflow.com/questions/41857387/how-do-i-create-band-limited-100-640-hz-white-gaussian-noise
 + http://keyj.emphy.de/balanced-shuffle/
 
-TODO on existing slides
-# Euclidean Patterns
-- Add name-label for each step-view
-- Add grooves!
-
-#Aliasing
-+ BIG slider or knob or just mouse move (sound on down) showing the frequency from 0 to 4x sample-rate
-+ Show in parallel a rotating circle to show the reverse effect visually as well
-
-+ dub mixer with quick delay cuts and reverb
-
-More ideas:
-- Simple XY Frequency + filter > delay > out
-- Wavemap (water) > use for modulation of floating oscillators
-+ Do not forget the test.html
-- Goertzel
-- Formant Speech
-
-
-Finalise >>>
-midi-mpk-game.html
-midi-mini-synth.html
-chords.html
-
-Check if we can make it >>>
-goertzel.html
-pitch-detection.html
-growls.html
-test.html
++ midi-mpk-game.html ?
++ midi-mini-synth.html ?
++ growls.html
++ test.html

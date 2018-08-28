@@ -57,9 +57,9 @@ export const hermiteNonPow2NonCircle = (x, phase, n) => {
     let idx = phase | 0;
     const alpha = phase - idx;
     const xm1 = x[idx];
-    const x0 = ++idx >= n ? 0.0: x[idx];
-    const x1 = ++idx >= n ? 0.0: x[idx];
-    const x2 = ++idx >= n ? 0.0: x[idx];
+    const x0 = ++idx >= n ? 0.0 : x[idx];
+    const x1 = ++idx >= n ? 0.0 : x[idx];
+    const x2 = ++idx >= n ? 0.0 : x[idx];
     const a = (3.0 * (x0 - x1) - xm1 + x2) * 0.5;
     const b = 2.0 * x1 + xm1 - (5.0 * x0 + x2) * 0.5;
     const c = (x1 - xm1) * 0.5;
@@ -116,6 +116,16 @@ export const crossoverIIRFilters = (context, source, frequencies, sampleRate) =>
     bands.push(source);
     return bands;
 };
+export const downmix = buffer => {
+    const mono = new Float32Array(buffer.length);
+    for (let j = 0; j < buffer.numberOfChannels; j++) {
+        const channelData = buffer.getChannelData(j);
+        for (let i = 0; i < buffer.length; i++) {
+            mono[i] += channelData[i];
+        }
+    }
+    return mono;
+};
 export const goertzel = (signal, freq, sampleRate, offset, n) => {
     const nF = freq / sampleRate;
     const coeff = 2.0 * Math.cos(2.0 * Math.PI * nF);
@@ -129,16 +139,24 @@ export const goertzel = (signal, freq, sampleRate, offset, n) => {
     }
     return Math.sqrt(s1 * s1 + s0 * s0 - coeff * s0 * s1) / (n / 2);
 };
-export const downmix = buffer => {
-    const mono = new Float32Array(buffer.length);
-    for (let j = 0; j < buffer.numberOfChannels; j++) {
-        const channelData = buffer.getChannelData(j);
-        for (let i = 0; i < buffer.length; i++) {
-            mono[i] += channelData[i];
-        }
+
+// TODO Numerical unstable for long signals
+// Although read https://www.dsprelated.com/showarticle/796.php
+export class Goertzel {
+    constructor(freq, sampleRate) {
+        const nF = freq / sampleRate;
+        this.coeff = 2.0 * Math.cos(2.0 * Math.PI * nF);
+        this.s0 = 0.0;
+        this.s1 = 0.0;
     }
-    return mono;
-};
+
+    pushAndPop(value) {
+        const s = value + this.coeff * this.s0 - this.s1;
+        this.s1 = this.s0;
+        this.s0 = s;
+        return Math.sqrt(this.s1 * this.s1 + this.s0 * this.s0 - this.coeff * this.s0 * this.s1);
+    }
+}
 
 export class RMS {
     constructor(n) {

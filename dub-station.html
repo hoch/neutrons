@@ -69,7 +69,7 @@
         const s3 = barsToSeconds(3.0 / 16.0, BPM);
         const s5 = barsToSeconds(4.0 / 16.0, BPM);
         pulsarDelay(context, effectBusAIn, effectBusAOut, sq, qa, s3, 0.98, 4000.0, 600.0);
-        pulsarDelay(context, effectBusBIn, effectBusBOut, sq, qa, s5 + 0.002, 0.99, 4000.0, 2000.0);
+        pulsarDelay(context, effectBusBIn, effectBusBOut, sq, qa, s5 + 0.002, 0.99, 8000.0, 2000.0);
         Promise.all(samples.map(sample => readAudio(context, sample.url)))
             .then(buffers => {
                 for (let i = 0; i < samples.length; i++) {

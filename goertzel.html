@@ -41,7 +41,6 @@
             chirpCanvas.setWaveform(signal);
             const testTime = duration / 4;
             const freq = exponentialRampByTime(20.0, sampleRate / 2.0, 0.0, duration, testTime);
-            console.log("test", freq);
             const response = new Float32Array(signal.length);
             let maxIndex = -1;
             let maxValue = 0.0;

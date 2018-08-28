@@ -7,7 +7,7 @@ export class ClickSetting {
             .valueMapping(Level.DEFAULT)
             .printMapping(OneFloat)
             .unit("db")
-            .value(-3.0);
+            .value(-6.0);
     }
 
     static beginTune() {

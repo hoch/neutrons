@@ -62,7 +62,12 @@ body article.center {
   align-items: center;
 }
 body footer {
+  color: #28E5FF;
   user-select: none;
+}
+body footer:before {
+  content: "❤";
+  margin-right: 12px;
 }
 pre {
   display: block;
