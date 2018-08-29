@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TB-303</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {Fragmentation, Sequencer, Midi} from "./modules/sequencing.js";
+        import {midiToFrequency, dbToGain, Random, barsToSeconds} from "./modules/neutrons.js";
+        import {Exp, Linear, OneFloat, NoFloat, BipolarPercent} from "./modules/mapping.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {ParameterKnob} from "./modules/editors.js";
+        import {pulsarDelay} from "./modules/effects.js";
+
+        const BPM = 120.0;
+
+        const tuning = ParameterBuilder.begin("Tuning")
+            .valueMapping(Linear.Bipolar)
+            .printMapping(BipolarPercent)
+            .value(0)
+            .create();
+        const fltFloor = new Exp(80, 480);
+        const cutoff = ParameterBuilder.begin("Cutoff")
+            .valueMapping(new Exp(800, 12000))
+            .printMapping(NoFloat)
+            .unit("Hz")
+            .value(800)
+            .create();
+        const resonance = ParameterBuilder.begin("Res")
+            .valueMapping(new Linear(-3.0, 6.0))
+            .printMapping(OneFloat)
+            .unit("db")
+            .value(-3.0)
+            .create();
+        const envMod = ParameterBuilder.begin("EnvMod")
+            .valueMapping(Linear.Identity)
+            .unit("%")
+            .value(1.0)
+            .create();
+        const delay = ParameterBuilder.begin("Delay")
+            .valueMapping(Linear.Identity)
+            .unit("%")
+            .value(0.125)
+            .create();
+        const accent = ParameterBuilder.begin("Accent")
+            .valueMapping(Linear.Identity)
+            .unit("%")
+            .value(1.0)
+            .create();
+
+        const context = Policy.newAudioContext();
+        const master = context.createGain();
+        master.gain.value = dbToGain(-12.0);
+        master.connect(context.destination);
+
+        const wetGain = context.createGain();
+        wetGain.gain.value = dbToGain(-12.0);
+        wetGain.connect(context.destination);
+
+        pulsarDelay(context, master, wetGain, barsToSeconds(1 / 16, BPM), barsToSeconds(1 / 8, BPM), barsToSeconds(3 / 16, BPM), 0.6, 18000, 80);
+
+        const oscillator = context.createOscillator();
+        oscillator.type = "square";
+        oscillator.frequency.value = 0.0;
+        oscillator.start();
+        const ampEnvelope = context.createGain();
+        ampEnvelope.gain.value = 0.0;
+        const highpass = context.createBiquadFilter();
+        highpass.type = "highpass";
+        highpass.frequency.value = 90.0;
+        highpass.Q.value = -3.0;
+
+        const flt0 = context.createBiquadFilter();
+        const flt1 = context.createBiquadFilter();
+        flt0.type = "lowpass";
+        flt1.type = "lowpass";
+        oscillator.connect(highpass).connect(ampEnvelope).connect(flt0).connect(flt1).connect(master);
+
+        const randomise = (seed) => {
+            const pattern = [];
+            const random = new Random(seed);
+            for (let i = 0; i < 16; i++) {
+                pattern[i] = {
+                    key: random.nextInt(13),
+                    transpose: random.nextInt(3) - 1,
+                    mode: random.nextInt(4) !== 1,
+                    slide: random.nextInt(7) === 1,
+                    accent: random.nextInt(2) === 1
+                };
+            }
+            return pattern;
+        };
+
+        // seed: 764, 4563456, 98117, 9011, 907311
+        // 801139, 764, 572
+        const pattern = randomise(125968);
+
+        let lastSlide = false;
+        const sequencer = new Sequencer(() => context.currentTime * 1000.0);
+
+        const getFrequency = (step) => midiToFrequency((step.transpose + 2 + tuning.value) * 12 + step.key, 440.0);
+        const fragmentation = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
+            const step = pattern[stepIndex % pattern.length];
+            const s0 = computeStartMillis(position) / 1000.0;
+            const s1 = computeStartMillis(position + (complete - position) / 12.0 * (7.0 + delay.value * 4.5)) / 1000.0;
+            const s2 = computeStartMillis(complete) / 1000.0;
+            const ve = 0.5 + envMod.value * 0.2;
+            const va = step.accent ? ve + accent.value * (1.0 - ve) : ve;
+            const fm = step.accent ? cutoff.value * (0.7 + accent.value) : cutoff.value * 0.7;
+            const fr = step.accent ? resonance.value + accent.value * 2.0 : resonance.value;
+            const ff = fltFloor.y(1.0 - envMod.value);
+            flt0.Q.linearRampToValueAtTime(fr, s0);
+            flt1.Q.linearRampToValueAtTime(fr, s0);
+            if (step.mode) {
+                ampEnvelope.gain.linearRampToValueAtTime(va, s0 + 0.003);
+                ampEnvelope.gain.setTargetAtTime(0.0, s0 + 0.004, 0.2);
+                flt0.frequency.setValueAtTime(fm, s0);
+                flt1.frequency.setValueAtTime(fm, s0);
+                if (!step.slide) {
+                    ampEnvelope.gain.setTargetAtTime(0.0, s1, 0.001);
+                    flt0.frequency.exponentialRampToValueAtTime(ff, s2);
+                    flt1.frequency.exponentialRampToValueAtTime(ff, s2);
+                }
+                if (!lastSlide) {
+                    oscillator.frequency.setValueAtTime(getFrequency(step), s0);
+                }
+            }
+            if (lastSlide) {
+                if (!step.slide) {
+                    ampEnvelope.gain.setTargetAtTime(0.0, s1, 0.001);
+                    flt0.frequency.exponentialRampToValueAtTime(ff, s2);
+                    flt1.frequency.exponentialRampToValueAtTime(ff, s2);
+                }
+                oscillator.frequency.exponentialRampToValueAtTime(getFrequency(step), s2);
+            }
+            lastSlide = step.slide;
+        }, 1.0 / 16.0);
+        sequencer.addProcessor((computeStartMillis, stepIndex, position) => fragmentation.equalise(computeStartMillis, stepIndex, position));
+        sequencer.bpm.value = BPM;
+        sequencer.start();
+
+        const element = document.querySelector("div#controls");
+        element.appendChild(new ParameterKnob(tuning).domElement);
+        element.appendChild(new ParameterKnob(cutoff).domElement);
+        element.appendChild(new ParameterKnob(resonance).domElement);
+        element.appendChild(new ParameterKnob(envMod).domElement);
+        element.appendChild(new ParameterKnob(delay).domElement);
+        element.appendChild(new ParameterKnob(accent).domElement);
+        const parameters = [tuning, cutoff, resonance, envMod, delay, accent];
+
+        Midi.request()
+            .then(midi => {
+                const events = Midi.mapAllEvents(midi);
+                events.onController = (id, unipolar) => {
+                    const parameter = parameters[id - 1];
+                    if (parameter) {
+                        parameter.unipolar = unipolar;
+                    }
+                };
+            });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Cheap Web-Audio-Api TB-303</h2>
+</header>
+<article class="center">
+    <div id="controls"></div>
+</article>
+<footer></footer>
+</body>
+</html>
