@@ -121,6 +121,7 @@ Sequencer.SCHEDULE_TIME = 10.0;
 Sequencer.ADDITIONAL_LATENCY = 10.0;
 
 export class Fragmentation {
+    // (computeStartMillis, stepIndex, position, complete) => {}
     constructor(callback, scale) {
         this.callback = callback;
         this.scale = scale;

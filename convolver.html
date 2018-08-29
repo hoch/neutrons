@@ -8,65 +8,123 @@
     <script src="slides.js" type="module"></script>
     <script type="module">
         import {Policy} from "./modules/policy.js";
-        import {fetchMicrophone, readAudio} from "./modules/standard.js";
+        import {fetchMicrophone, readAudio, replaceElement} from "./modules/standard.js";
+        import {PlotterCanvas} from "./modules/plotter.js";
+        import {dbToGain} from "./modules/neutrons.js";
 
-        const impulses = [
-            "files/impulse/spaces/Church.wav",
-            "files/impulse/spaces/Deep Space.wav",
-            "files/impulse/spaces/Hangar.wav",
-            "files/impulse/spaces/Large Wide Echo Hall.wav",
-            "files/impulse/spaces/PlateLarge.wav",
-            "files/impulse/spaces/PlateMedium.wav",
-            "files/impulse/spaces/PlateSmall.wav",
-            "files/impulse/spaces/PlateLong.wav",
-            "files/impulse/spaces/PrimeLong.wav",
+        const fileNames = [
+            "Church",
+            "Deep Space",
+            "Hangar",
+            "Large Wide Echo Hall",
+            "PlateLarge",
+            "PlateMedium",
+            "PlateSmall",
+            "PlateLarge",
+            "PrimeLong",
         ];
         const context = Policy.newAudioContext();
         const convolver = context.createConvolver();
-        const loadImpulse = (url) => {
-            readAudio(context, url)
-                .then(buffer => convolver.buffer = buffer);
-        };
-        const createButton = (name) => {
-            const element = document.createElement("div");
-            element.className = "impulse";
-            element.textContent = name;
-            return element;
-        };
         const master = context.createGain();
         master.gain.value = 0.0;
         master.connect(context.destination);
-        fetchMicrophone()
-            .then(stream => {
-                const wetSignal = context.createGain();
-                wetSignal.gain.value = 0.5;
-                const sourceNode = context.createMediaStreamSource(stream);
-                sourceNode
-                    .connect(wetSignal)
-                    .connect(convolver)
-                    .connect(master);
-                sourceNode
-                    .connect(master);
-                let last = null;
-                const list = document.querySelector("div.impulses");
+        const plotterL = new PlotterCanvas();
+        const plotterR = new PlotterCanvas();
+
+        const createButton = (name, className) => {
+            const element = document.createElement("div");
+            element.className = className;
+            element.textContent = name;
+            return element;
+        };
+
+        const location = "files/impulse/spaces/";
+        const fileExtension = ".ogg";
+        Promise.all(fileNames.map(fileName => readAudio(context, location + fileName + fileExtension)))
+            .then(impulses => {
+                fetchMicrophone()
+                    .then(stream => {
+                        const wetSignal = context.createGain();
+                        wetSignal.gain.value = 0.5;
+                        const sourceNode = context.createMediaStreamSource(stream);
+                        sourceNode
+                            .connect(wetSignal)
+                            .connect(convolver)
+                            .connect(master);
+                        sourceNode
+                            .connect(master);
+                    });
+
+                const selectImpulse = (index) => {
+                    console.log("selectImpulse", index);
+                    const buffer = impulses[index];
+                    plotterL.setWaveform(buffer.getChannelData(0));
+                    plotterR.setWaveform(buffer.getChannelData(1));
+                    convolver.buffer = buffer;
+                };
+                let lastButton = null;
+                const selectList = document.querySelector("div#select");
                 for (let i = 0; i < impulses.length; i++) {
-                    const url = impulses[i];
-                    const button = createButton(url.substring(url.lastIndexOf("/") + 1, url.lastIndexOf(".wav")));
+                    const button = createButton(fileNames[i], "impulse");
                     button.onclick = ignore => {
-                        if (null !== last) {
-                            last.classList.remove("active");
+                        if (null !== lastButton) {
+                            lastButton.classList.remove("active");
                         }
-                        last = button;
+                        lastButton = button;
                         button.classList.add("active");
-                        loadImpulse(impulses[i]);
+                        selectImpulse(i);
                     };
-                    list.appendChild(button);
+                    selectList.appendChild(button);
+                }
+
+                let source = null;
+                let lastPlaybackTime = Number.NEGATIVE_INFINITY;
+                const playList = document.querySelector("div#play");
+                for (let i = 0; i < impulses.length; i++) {
+                    const button = createButton("▶", "play");
+                    const buffer = impulses[i];
+                    playList.appendChild(button);
+                    button.onclick = ignore => {
+                        if (null !== source) {
+                            source.stop();
+                            source = null;
+                        }
+                        plotterL.setWaveform(buffer.getChannelData(0));
+                        plotterR.setWaveform(buffer.getChannelData(1));
+                        source = context.createBufferSource();
+                        source.buffer = buffer;
+                        source.onended = ignore => {
+                            button.classList.remove("active");
+                            if (source === this) {
+                                source = null;
+                            }
+                        };
+                        source.start(lastPlaybackTime = context.currentTime);
+                        const gainNode = context.createGain();
+                        gainNode.gain.value = dbToGain(-6.0);
+                        source.connect(gainNode).connect(context.destination);
+                        window.requestAnimationFrame(() => {
+                            button.classList.add("active");
+                            run();
+                        });
+                    };
                 }
 
                 const enabled = document.querySelector("input#enabled");
                 enabled.addEventListener("change", ignore => {
                     master.gain.linearRampToValueAtTime(enabled.checked ? 1.0 : 0.0, context.currentTime + 0.050);
                 });
+                replaceElement(plotterL.domElement, document.querySelector("div#waveform-l"));
+                replaceElement(plotterR.domElement, document.querySelector("div#waveform-r"));
+
+                const run = () => {
+                    if (null !== source && null !== source.buffer) {
+                        const frame = (context.currentTime - lastPlaybackTime) * source.buffer.sampleRate;
+                        plotterL.setCursor(frame);
+                        plotterR.setCursor(frame);
+                        window.requestAnimationFrame(run);
+                    }
+                };
             });
     </script>
 </head>
@@ -76,7 +134,12 @@
     <h2>Convolver Node</h2>
 </header>
 <article class="center">
-    <div class="impulses"></div>
+    <div style="display: flex; flex-direction: column; width: 100%;">
+        <div class="list" id="play"></div>
+        <div class="list" id="select"></div>
+        <div class="waveform" id="waveform-l"></div>
+        <div class="waveform" id="waveform-r"></div>
+    </div>
     <div style="position: absolute; top: 8px; left: 8px;">
         <input type="checkbox" id="enabled">
         <label for="enabled">Enabled</label>

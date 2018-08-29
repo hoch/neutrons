@@ -1,7 +1,9 @@
 + Flanger
 
-+ KickFactory (https://i.ytimg.com/vi/iXMbkwVzi1M/maxresdefault.jpg)
-    + Impulse selector
++ Explain supported audio format
+
++ Delay
+    + Kalimba
 
 + VoiceFreezer
     + Capture multiple periods and create a PeriodicWave (simple)
@@ -16,9 +18,12 @@ Additional Information Slides
 + decodeAudioData does not return promise
 
 Interesting links:
-+ https://gist.github.com/chrisguttandin/e49764f9c29376780f2eb1f7d22b54e4
-+ https://stackoverflow.com/questions/41857387/how-do-i-create-band-limited-100-640-hz-white-gaussian-noise
-+ http://keyj.emphy.de/balanced-shuffle/
++ What else can we do with the Web Audio API?
+    https://gist.github.com/chrisguttandin/e49764f9c29376780f2eb1f7d22b54e4
++ The art of shuffling music
+    http://keyj.emphy.de/balanced-shuffle/
++ Granular Synthesis
+    http://www.granularsynthesis.com/hthesis/contents.html
 
 + midi-mpk-game.html ?
 + midi-mini-synth.html ?
