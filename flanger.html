@@ -9,6 +9,9 @@
         import {Policy} from "./modules/policy.js";
         import {readAudio} from "./modules/standard.js";
         import {flanger} from "./modules/effects.js";
+        import {OneFloat, Exp} from "./modules/mapping.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {ParameterKnob} from "./modules/editors.js";
 
         const context = Policy.newAudioContext();
         readAudio(context, "files/loops/hiphop-drum-loop-120bpm.ogg")
@@ -18,7 +21,45 @@
                 source.loop = true;
                 source.start();
                 source.connect(context.destination);
-                flanger(context, source, context.destination);
+                const params = flanger(context, source, context.destination);
+                const interpolationTime = 0.010;
+                const delayTime = ParameterBuilder.begin("Delay Time")
+                    .valueMapping(new Exp(3.0, 50.0))
+                    .printMapping(OneFloat)
+                    .unit("ms")
+                    .value(params.delayTime.value * 1000.0)
+                    .callback(p => params.delayTime
+                        .exponentialRampToValueAtTime(p.value / 1000.0, context.currentTime + interpolationTime))
+                    .create();
+                const feedback = ParameterBuilder.begin("Feedback")
+                    .value(params.feedback.value)
+                    .callback(p => params.feedback
+                        .linearRampToValueAtTime(p.value, context.currentTime + interpolationTime))
+                    .create();
+                const lfoFrequency = ParameterBuilder.begin("Lfo Frequency")
+                    .valueMapping(new Exp(0.05, 50.0))
+                    .printMapping(OneFloat)
+                    .unit("Hz")
+                    .value(params.lfoFrequency.value)
+                    .callback(p => params.lfoFrequency
+                        .exponentialRampToValueAtTime(p.value, context.currentTime + interpolationTime))
+                    .create();
+                const lfoDepth = ParameterBuilder.begin("lfo Depth")
+                    .value(params.lfoDepth.value * 100.0)
+                    .callback(p => params.lfoDepth
+                        .linearRampToValueAtTime(p.value / 100.0, context.currentTime + interpolationTime))
+                    .create();
+                const wet = ParameterBuilder.begin("Wet")
+                    .value(params.wet.value)
+                    .callback(p => params.wet
+                        .linearRampToValueAtTime(p.value, context.currentTime + interpolationTime))
+                    .create();
+                const controls = document.querySelector("div#controls");
+                controls.appendChild(new ParameterKnob(delayTime).domElement);
+                controls.appendChild(new ParameterKnob(feedback).domElement);
+                controls.appendChild(new ParameterKnob(lfoFrequency).domElement);
+                controls.appendChild(new ParameterKnob(lfoDepth).domElement);
+                controls.appendChild(new ParameterKnob(wet).domElement);
             });
     </script>
 </head>
@@ -27,8 +68,8 @@
     <h1>Klangwerk</h1>
     <h2>Flanger</h2>
 </header>
-<article>
-
+<article class="center">
+    <div id="controls"></div>
 </article>
 <footer></footer>
 </body>

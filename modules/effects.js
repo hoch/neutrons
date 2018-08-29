@@ -1,5 +1,3 @@
-import {barsToSeconds} from "./neutrons.js";
-
 export const echo = (context, input, output, delayTime, feedback, wetLevel) => {
     const delay = context.createDelay();
     delay.delayTime.value = delayTime;
@@ -18,7 +16,7 @@ export const echo = (context, input, output, delayTime, feedback, wetLevel) => {
 
 export const flanger = (context, input, output) => {
     const delayNode = context.createDelay();
-    delayNode.delayTime.value = 0.010;
+    delayNode.delayTime.value = 0.007;
     const feedbackGain = context.createGain();
     feedbackGain.gain.value = 0.9;
     const wetGain = context.createGain();
@@ -28,10 +26,16 @@ export const flanger = (context, input, output) => {
     const depthNode = context.createGain();
     depthNode.gain.value = 0.001;
     const oscillatorNode = context.createOscillator();
-    oscillatorNode.frequency.value = 1.0;
+    oscillatorNode.frequency.value = 0.1;
     oscillatorNode.connect(depthNode).connect(delayNode.delayTime);
     oscillatorNode.start();
-    // TODO return audio-params
+    return {
+        delayTime: delayNode.delayTime,
+        feedback: feedbackGain.gain,
+        lfoFrequency: oscillatorNode.frequency,
+        lfoDepth: depthNode.gain,
+        wet: wetGain.gain
+    };
 };
 
 export const pulsarDelay = (context, input, output, delayTimeL, delayTimeR, delayTime, feedback, lpf, hpf) => {
