@@ -10,7 +10,7 @@ export const echo = (context, input, output, delayTime, feedback, wetLevel) => {
     return {
         delayTime: delay.delayTime,
         feedback: feedbackGain.gain,
-        gain: wetGain.gain
+        wet: wetGain.gain
     };
 };
 

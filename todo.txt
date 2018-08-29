@@ -1,21 +1,9 @@
-+ Flanger
++ limiter
 
-+ Explain supported audio format
-
-+ Delay
-    + Kalimba
 
 + VoiceFreezer
     + Capture multiple periods and create a PeriodicWave (simple)
     + Also create a large pad by adding voices to chords (many voices)
-
-Additional Information Slides
-+ Explain all waa modules / https://www.w3.org/TR/webaudio/#enumdef-channelcountmode
-+ OfflineRenderer
-+ AudioWorklet
-+ Fixed BlockSize
-+ Weird Parameter API
-+ decodeAudioData does not return promise
 
 Interesting links:
 + What else can we do with the Web Audio API?

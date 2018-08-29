@@ -2,29 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Flanger</title>
+    <title>Echo</title>
     <link rel="stylesheet" href="styles.css">
     <script src="slides.js" type="module"></script>
     <script type="module">
         import {Policy} from "./modules/policy.js";
-        import {readAudio} from "./modules/standard.js";
-        import {flanger} from "./modules/effects.js";
+        import {fetchMicrophone} from "./modules/standard.js";
+        import {echo} from "./modules/effects.js";
         import {OneFloat, Exp} from "./modules/mapping.js";
         import {ParameterBuilder} from "./modules/parameter.js";
         import {ParameterKnob} from "./modules/editors.js";
 
         const context = Policy.newAudioContext();
-        readAudio(context, "files/loops/hiphop-drum-loop-120bpm.ogg")
-            .then(buffer => {
-                const source = context.createBufferSource();
-                source.buffer = buffer;
-                source.loop = true;
+        fetchMicrophone()
+            .then(stream => {
+                const source = context.createMediaStreamSource(stream);
                 source.connect(context.destination);
-                const params = flanger(context, source, context.destination);
-                params.wet.value = 0.0;
+                const params = echo(context, source, context.destination, 0.200, 0.5, 0.5);
                 const interpolationTime = 0.010;
                 const delayTime = ParameterBuilder.begin("Delay Time")
-                    .valueMapping(new Exp(3.0, 50.0))
+                    .valueMapping(new Exp(3.0, 1000.0))
                     .printMapping(OneFloat)
                     .unit("ms")
                     .value(params.delayTime.value * 1000.0)
@@ -36,19 +33,6 @@
                     .callback(p => params.feedback
                         .linearRampToValueAtTime(p.value, context.currentTime + interpolationTime))
                     .create();
-                const lfoFrequency = ParameterBuilder.begin("Lfo Frequency")
-                    .valueMapping(new Exp(0.05, 50.0))
-                    .printMapping(OneFloat)
-                    .unit("Hz")
-                    .value(params.lfoFrequency.value)
-                    .callback(p => params.lfoFrequency
-                        .exponentialRampToValueAtTime(p.value, context.currentTime + interpolationTime))
-                    .create();
-                const lfoDepth = ParameterBuilder.begin("lfo Depth")
-                    .value(params.lfoDepth.value * 100.0)
-                    .callback(p => params.lfoDepth
-                        .linearRampToValueAtTime(p.value / 100.0, context.currentTime + interpolationTime))
-                    .create();
                 const wet = ParameterBuilder.begin("Wet")
                     .value(params.wet.value)
                     .callback(p => params.wet
@@ -57,24 +41,16 @@
                 const controls = document.querySelector("div#controls");
                 controls.appendChild(new ParameterKnob(delayTime).domElement);
                 controls.appendChild(new ParameterKnob(feedback).domElement);
-                controls.appendChild(new ParameterKnob(lfoFrequency).domElement);
-                controls.appendChild(new ParameterKnob(lfoDepth).domElement);
                 controls.appendChild(new ParameterKnob(wet).domElement);
-                const button = document.querySelector("button");
-                button.onclick = () => {
-                    source.start();
-                    button.remove();
-                };
             });
     </script>
 </head>
 <body>
 <header>
     <h1>Klangwerk</h1>
-    <h2>Flanger</h2>
+    <h2>Echo</h2>
 </header>
 <article class="center">
-    <div style="position: absolute; top: 0; left: 0;"><button>PLAY</button></div>
     <div id="controls"></div>
 </article>
 <footer></footer>
