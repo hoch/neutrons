@@ -388,7 +388,14 @@ export class MidiData {
     }
 
     static asValue(data) {
-        return MidiData.param2(data) / 127.0;
+        const value = MidiData.param2(data);
+        if (64 < value) {
+            return 0.5 + (value - 63) / 128;
+        } else if (64 > value) {
+            return value / 128;
+        } else {
+            return 0.5;
+        }
     }
 
     static command(data) {
