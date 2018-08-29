@@ -1,5 +1,5 @@
 + limiter
-
++ dub chords instead of dub-station
 
 + VoiceFreezer
     + Capture multiple periods and create a PeriodicWave (simple)

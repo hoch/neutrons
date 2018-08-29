@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Brickwall Limiter</title>
+    <title>Limiter</title>
     <link rel="stylesheet" href="styles.css">
     <script src="slides.js" type="module"></script>
     <script type="module">
@@ -18,18 +18,36 @@
         const context = Policy.newAudioContext();
 
         Promise.all([
-            readAudio(context, "files/loops/beat-with-bass-100bpm.ogg"),
+            readAudio(context, "files/loops/sandburgen.ogg"),
             context.audioWorklet.addModule("./worklets/LimiterProcessor.js"),
             context.audioWorklet.addModule("./worklets/StereoMeterProcessor.js")
         ])
             .then(results => {
                 const limiter = new Limiter(context);
-                const stereoMeter = new StereoMeter(context, 640);
+                const preMeter = new StereoMeter(context, 640);
+                const postMeter = new StereoMeter(context, 640);
 
-                const source = context.createBufferSource();
-                source.buffer = results[0];
-                source.loop = true;
-                source.start();
+                let source = null;
+
+                document.querySelector("input#play")
+                    .onchange = event => {
+                    if (event.target.checked) {
+                        if( null !== source ) {
+                            return;
+                        }
+                        source = context.createBufferSource();
+                        source.buffer = results[0];
+                        source.loop = true;
+                        source.connect(gainNode);
+                        source.start();
+                    } else {
+                        if( null === source ) {
+                            return;
+                        }
+                        source.stop();
+                        source = null;
+                    }
+                };
 
                 const gainNode = context.createGain();
                 const db = 0.0;
@@ -40,24 +58,43 @@
                     .valueMapping(new Level(-72.0, 0.0, 36.0))
                     .printMapping(OneFloat)
                     .value(db)
-                    .callback(p => gainNode.gain.linearRampToValueAtTime(dbToGain(p.value), context.currentTime + 0.005))
+                    .callback(p => gainNode.gain
+                        .linearRampToValueAtTime(dbToGain(p.value), context.currentTime + 0.005))
                     .unit("db").create();
 
-                replaceElement(stereoMeter.domElement, document.querySelector("div#meter"));
-                replaceElement(new ParameterKnob(parameterGain).domElement, document.querySelector("div#gain"));
+                const parameterThreshold = ParameterBuilder
+                    .begin("Threshold")
+                    .valueMapping(new Level(-24.0, -6.0, 0.0))
+                    .printMapping(OneFloat)
+                    .value(0.0)
+                    .callback(p => limiter.threshold = p.value)
+                    .unit("db").create();
 
-                source.connect(gainNode).connect(limiter).connect(stereoMeter).connect(context.destination);
+                replaceElement(preMeter.domElement, document.querySelector("div#pre-meter"));
+                replaceElement(new ParameterKnob(parameterGain).domElement, document.querySelector("div#gain"));
+                replaceElement(new ParameterKnob(parameterThreshold).domElement, document.querySelector("div#threshold"));
+                replaceElement(postMeter.domElement, document.querySelector("div#post-meter"));
+
+                gainNode.connect(preMeter).connect(limiter).connect(postMeter).connect(context.destination);
             });
     </script>
 </head>
 <body>
 <header>
     <h1>Klangwerk</h1>
-    <h2>Brickwall Limiter</h2>
+    <h2>Limiter</h2>
 </header>
 <article class="center">
-    <div id="meter"></div>
-    <div id="gain"></div>
+    <div style="position: absolute; top: 0; left: 0;">
+        <input type="checkbox" id="play">
+        <label for="play">Play</label>
+    </div>
+    <div id="pre-meter"></div>
+    <div style="margin: 0 48px;">
+        <div id="gain"></div>
+        <div id="threshold"></div>
+    </div>
+    <div id="post-meter"></div>
 </article>
 <footer></footer>
 </body>

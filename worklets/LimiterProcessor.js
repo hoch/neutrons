@@ -12,10 +12,13 @@ registerProcessor("limiter", class extends AudioWorkletProcessor {
         this.envelope = 0.0;
         this.threshold = -1.0;
 
-        this.config(0.005);
-
         this.port.onmessage = event => {
-            this.config(event.data);
+            const data = event.data;
+            if (data.action === "lookahead") {
+                this.config(data.value);
+            } else if (data.action === "threshold") {
+                this.threshold = data.value;
+            }
         };
     }
 
@@ -40,6 +43,9 @@ registerProcessor("limiter", class extends AudioWorkletProcessor {
         if (null === buffer) {
             return true;
         }
+        // This number is found by trying to make the limiter super brick-wall.
+        // There is probably a way to calculate it. Only tested for 5ms look-ahead.
+        const MAGIC_HEADROOM = -0.41; // -0.40 already does not work with some input
         const frames = this.lookAheadFrames;
         const input = inputs[0];
         const output = outputs[0];
@@ -58,7 +64,8 @@ registerProcessor("limiter", class extends AudioWorkletProcessor {
             } else {
                 this.envelope = peak + this.releaseCoeff * (this.envelope - peak);
             }
-            const gain = dbToGain(Math.min(0.0, this.threshold - gainToDb(this.envelope)));
+            const gain = dbToGain(Math.min(0.0, this.threshold - gainToDb(this.envelope)))
+                * dbToGain(MAGIC_HEADROOM - this.threshold);
             output0[i] = buffer0[this.position] * gain;
             output1[i] = buffer1[this.position] * gain;
             buffer0[this.position] = inp0;

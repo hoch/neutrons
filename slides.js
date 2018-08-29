@@ -32,6 +32,8 @@ const get_next_slide = () => {
         "waa-automation.html",
         "tb303.html",
         "kicks.html",
+        "subject.html#Limiter",
+        "limiter.html",
         "digital-audio.html",
         "subject.html#Fourier-Transformation",
         "fourier.html",

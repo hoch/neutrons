@@ -145,6 +145,7 @@ button {
   font-size: 10px;
   outline: transparent;
   text-transform: uppercase;
+  cursor: pointer;
 }
 button.toggle {
   color: #28E5FF;
