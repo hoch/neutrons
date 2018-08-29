@@ -217,7 +217,6 @@ export const createRadioButton = (parent, name, checked, labelText, value) => {
     const id = uid();
     checkbox.id = id;
     const label = document.createElement("label");
-    562333235
     label.setAttribute("for", id);
     label.textContent = labelText;
     parent.appendChild(checkbox);
@@ -225,17 +224,15 @@ export const createRadioButton = (parent, name, checked, labelText, value) => {
     return checkbox;
 };
 export const createRadioGroup = (form, name) => (checked, labelText, value) => createRadioButton(form, name, checked, labelText, value);
-export const nextPow2 = n => {
-    let m = n;
-    let i;
-    for (i = 0; m > 1; i++) {
-        m = m >>> 1;
-    }
-    // Round to nearest power
-    if ((n & 1) << i - 1) {
-        i++;
-    }
-    return 1 << i;
+export const nextPow2 = v => {
+    v += v === 0;
+    --v;
+    v |= v >>> 1;
+    v |= v >>> 2;
+    v |= v >>> 4;
+    v |= v >>> 8;
+    v |= v >>> 16;
+    return v + 1;
 };
 // Creates a strictly monotone increasing number sequence from [0,1]
 export const monotoneRandom = (sequence, depth) => {
