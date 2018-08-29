@@ -116,7 +116,7 @@ export class Kicks {
                 click.copyFrom(this.clickSetting);
                 click.connect(convolver);
                 click.connect(context.destination);
-                return readAudio(context, "files/impulse/spaces/St Nicolaes Church.wav")
+                return readAudio(context, "files/impulse/spaces/St Nicolaes Church.ogg")
                     .then(impulse => {
                         convolver.buffer = impulse;
                         return new Promise((resolve, ignore) => {

@@ -366,7 +366,7 @@
             })
             .then(() => {
                 Promise.all([
-                    readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.wav"),
+                    readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.ogg"),
                     context.audioWorklet.addModule("./worklets/LimiterProcessor.js")
                 ]).then(results => {
                     const convolver = context.createConvolver();

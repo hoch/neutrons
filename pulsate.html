@@ -32,7 +32,7 @@
             voicesGain.gain.value = 0.2;
             voicesGain.connect(splitter).connect(limiter);
             const reverb = context.createConvolver();
-            readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.wav").then(buffer => reverb.buffer = buffer);
+            readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.ogg").then(buffer => reverb.buffer = buffer);
             reverb.connect(limiter);
             echo(context, voicesGain, reverb, 0.5, 0.7, 0.4);
 

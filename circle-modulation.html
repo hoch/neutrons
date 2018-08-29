@@ -22,7 +22,7 @@
         const oscGain = context.createGain();
         oscGain.gain.value = 0.3;
         const reverb = context.createConvolver();
-        readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.wav").then(buffer => reverb.buffer = buffer);
+        readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.ogg").then(buffer => reverb.buffer = buffer);
         const wet = context.createGain();
         const dry = context.createGain();
         const oscillator = context.createOscillator();
