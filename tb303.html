@@ -7,9 +7,9 @@
     <script src="slides.js" type="module"></script>
     <script type="module">
         import {Policy} from "./modules/policy.js";
-        import {Fragmentation, Sequencer, Midi} from "./modules/sequencing.js";
-        import {midiToFrequency, dbToGain, Random, barsToSeconds} from "./modules/neutrons.js";
-        import {Exp, Linear, OneFloat, NoFloat, BipolarPercent} from "./modules/mapping.js";
+        import {Fragmentation, Midi, Sequencer} from "./modules/sequencing.js";
+        import {barsToSeconds, dbToGain, midiToFrequency, Random} from "./modules/neutrons.js";
+        import {BipolarPercent, Exp, Linear, NoFloat, OneFloat} from "./modules/mapping.js";
         import {ParameterBuilder} from "./modules/parameter.js";
         import {ParameterKnob} from "./modules/editors.js";
         import {pulsarDelay} from "./modules/effects.js";
@@ -140,7 +140,6 @@
         }, 1.0 / 16.0);
         sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag303.equalise(computeStartMillis, stepIndex, position));
         sequencer.bpm.value = BPM;
-        sequencer.start();
 
         const fileNames = [
             "./files/808/bassdrum.ogg",
@@ -200,6 +199,7 @@
         element.appendChild(new ParameterKnob(envMod).domElement);
         element.appendChild(new ParameterKnob(delay).domElement);
         element.appendChild(new ParameterKnob(accent).domElement);
+        document.querySelector("input#play").onchange = event => sequencer.playMode(event.target.checked);
         const parameters = [tuning, cutoff, resonance, envMod, delay, accent];
 
         Midi.request()
@@ -220,7 +220,13 @@
     <h2>Cheap Web-Audio-Api TB-303</h2>
 </header>
 <article class="center">
-    <div id="controls"></div>
+    <div>
+        <div style="margin: 0 0 16px 16px;">
+            <input type="checkbox" id="play">
+            <label for="play">Play</label>
+        </div>
+        <div id="controls"></div>
+    </div>
 </article>
 <footer></footer>
 </body>
