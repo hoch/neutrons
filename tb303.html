@@ -13,8 +13,9 @@
         import {ParameterBuilder} from "./modules/parameter.js";
         import {ParameterKnob} from "./modules/editors.js";
         import {pulsarDelay} from "./modules/effects.js";
+        import {readAudio} from "./modules/standard.js";
 
-        const BPM = 120.0;
+        const BPM = 124.0;
 
         const tuning = ParameterBuilder.begin("Tuning")
             .valueMapping(Linear.Bipolar)
@@ -94,14 +95,14 @@
         };
 
         // seed: 764, 4563456, 98117, 9011, 907311
-        // 801139, 764, 572
-        const pattern = randomise(125968);
+        // 801139, 764, 572, 125968
+        const pattern = randomise(8723);
 
         let lastSlide = false;
         const sequencer = new Sequencer(() => context.currentTime * 1000.0);
 
         const getFrequency = (step) => midiToFrequency((step.transpose + 2 + tuning.value) * 12 + step.key, 440.0);
-        const fragmentation = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
+        const frag303 = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
             const step = pattern[stepIndex % pattern.length];
             const s0 = computeStartMillis(position) / 1000.0;
             const s1 = computeStartMillis(position + (complete - position) / 12.0 * (7.0 + delay.value * 4.5)) / 1000.0;
@@ -137,9 +138,60 @@
             }
             lastSlide = step.slide;
         }, 1.0 / 16.0);
-        sequencer.addProcessor((computeStartMillis, stepIndex, position) => fragmentation.equalise(computeStartMillis, stepIndex, position));
+        sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag303.equalise(computeStartMillis, stepIndex, position));
         sequencer.bpm.value = BPM;
         sequencer.start();
+
+        const fileNames = [
+            "./files/808/bassdrum.ogg",
+            "./files/808/snaredrum.ogg",
+            "./files/808/rim.ogg",
+            "./files/808/clave.ogg",
+            "./files/808/clap.ogg",
+            "./files/808/low-tom.ogg",
+            "./files/808/mid-tom.ogg",
+            "./files/808/high-tom.ogg",
+            "./files/808/closed-hat.ogg",
+            "./files/808/open-hat.ogg",
+            "./files/808/cymbal.ogg",
+            "./files/808/cowbell.ogg",
+        ];
+
+        const p808 = [
+            [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+            [],
+            [],
+            [],
+            [0, 0, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+        ];
+
+        Promise.all(fileNames.map(fileName => readAudio(context, fileName)))
+            .then(buffers => {
+                const m808 = context.createGain();
+                m808.gain.value = dbToGain(-3.0);
+                m808.connect(context.destination);
+                const frag808 = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
+                    const time = computeStartMillis(position) / 1000.0;
+                    for (let i = 0; i < p808.length; i++) {
+                        const line = p808[i];
+                        if (0 === line.length) {
+                            continue;
+                        }
+                        if (line[stepIndex % line.length] !== 0) {
+                            const source = context.createBufferSource();
+                            source.buffer = buffers[i];
+                            source.start(time);
+                            source.connect(m808);
+                        }
+                    }
+                }, 1.0 / 16.0);
+                sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag808.equalise(computeStartMillis, stepIndex, position));
+            });
 
         const element = document.querySelector("div#controls");
         element.appendChild(new ParameterKnob(tuning).domElement);
