@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Convolution</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script src="./lib/fft.js"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {readAudio, nextPow2} from "./modules/standard.js";
+        import {normalise} from "./modules/neutrons.js";
+
+        const context = Policy.newAudioContext();
+        Promise.all([
+            readAudio(context, "files/one-shots/chip.ogg"),
+            readAudio(context, "files/impulse/spaces/Large Wide Echo Hall.ogg")
+        ]).then(inputs => {
+            const input = inputs[0];
+            const impulse = inputs[1];
+            console.log("input duration", input.duration);
+            console.log("impulse duration", impulse.duration);
+            const nInp = input.length;
+            const nImp = impulse.length;
+            const n = nextPow2(nInp + nImp);
+            const inpReal = new Float32Array(n);
+            const inpImag = new Float32Array(n);
+            const impReal = new Float32Array(n);
+            const impImag = new Float32Array(n);
+            input.copyFromChannel(inpReal, 0, 0);
+            impulse.copyFromChannel(impReal, 0, 0);
+            const fft = new FFT(n);
+            fft.process(impReal, impImag);
+            const real = new Float32Array(n);
+            const imag = new Float32Array(n);
+            //-- runtime > 0.7ms each block
+            const now = performance.now();
+            fft.process(inpReal, inpImag);
+            const max = Math.max(nInp, nImp); // rest is zero anyway
+            for (let i = 0; i < max; i++) {
+                const inpR = inpReal[i];
+                const inpI = inpImag[i];
+                const impR = impReal[i];
+                const impI = impImag[i];
+                real[i] = inpR * impR - inpI * impI;
+                imag[i] = inpR * impI + inpI * impR;
+            }
+            fft.process(imag, real);
+            normalise(real);
+            const elapsed = performance.now() - now;
+            const numBlocks = Math.floor(nInp / 128);
+            console.log(elapsed.toFixed(1), "ms", "numBlocks(x128)", numBlocks, "estimate", elapsed / numBlocks);
+            //-- <<
+
+            const buffer = context.createBuffer(1, n, input.sampleRate);
+            buffer.copyToChannel(real, 0, 0);
+            const source = context.createBufferSource();
+            source.buffer = buffer;
+            source.connect(context.destination);
+            source.start();
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Convolution</h2>
+</header>
+<article>
+
+</article>
+<footer></footer>
+</body>
+</html>
