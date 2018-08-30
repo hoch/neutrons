@@ -14,6 +14,7 @@
         import {ParameterKnob} from "./modules/editors.js";
         import {pulsarDelay} from "./modules/effects.js";
         import {readAudio} from "./modules/standard.js";
+        import {Limiter} from "./worklets/Limiter.js";
 
         const BPM = 124.0;
 
@@ -52,165 +53,168 @@
             .create();
 
         const context = Policy.newAudioContext();
-        const master = context.createGain();
-        master.gain.value = dbToGain(-12.0);
-        master.connect(context.destination);
+        context.audioWorklet.addModule("./worklets/LimiterProcessor.js")
+            .then(()=>{
+                const out303 = context.createGain();
+                out303.gain.value = dbToGain(-12.0);
+                out303.connect(new Limiter(context)).connect(context.destination);
 
-        const wetGain = context.createGain();
-        wetGain.gain.value = dbToGain(-12.0);
-        wetGain.connect(context.destination);
+                const wetGain = context.createGain();
+                wetGain.gain.value = dbToGain(-12.0);
+                wetGain.connect(context.destination);
 
-        pulsarDelay(context, master, wetGain, barsToSeconds(1 / 16, BPM), barsToSeconds(1 / 8, BPM), barsToSeconds(3 / 16, BPM), 0.6, 18000, 80);
+                pulsarDelay(context, out303, wetGain, barsToSeconds(1 / 16, BPM), barsToSeconds(1 / 8, BPM), barsToSeconds(3 / 16, BPM), 0.6, 18000, 80);
 
-        const oscillator = context.createOscillator();
-        oscillator.type = "square";
-        oscillator.frequency.value = 0.0;
-        oscillator.start();
-        const ampEnvelope = context.createGain();
-        ampEnvelope.gain.value = 0.0;
-        const highpass = context.createBiquadFilter();
-        highpass.type = "highpass";
-        highpass.frequency.value = 90.0;
-        highpass.Q.value = -3.0;
+                const oscillator = context.createOscillator();
+                oscillator.type = "square";
+                oscillator.frequency.value = 0.0;
+                oscillator.start();
+                const ampEnvelope = context.createGain();
+                ampEnvelope.gain.value = 0.0;
+                const highpass = context.createBiquadFilter();
+                highpass.type = "highpass";
+                highpass.frequency.value = 90.0;
+                highpass.Q.value = -3.0;
 
-        const flt0 = context.createBiquadFilter();
-        const flt1 = context.createBiquadFilter();
-        flt0.type = "lowpass";
-        flt1.type = "lowpass";
-        oscillator.connect(highpass).connect(ampEnvelope).connect(flt0).connect(flt1).connect(master);
+                const flt0 = context.createBiquadFilter();
+                const flt1 = context.createBiquadFilter();
+                flt0.type = "lowpass";
+                flt1.type = "lowpass";
+                oscillator.connect(highpass).connect(ampEnvelope).connect(flt0).connect(flt1).connect(out303);
 
-        const randomise = (seed) => {
-            const pattern = [];
-            const random = new Random(seed);
-            for (let i = 0; i < 16; i++) {
-                pattern[i] = {
-                    key: random.nextInt(13),
-                    transpose: random.nextInt(3) - 1,
-                    mode: random.nextInt(4) !== 1,
-                    slide: random.nextInt(7) === 1,
-                    accent: random.nextInt(2) === 1
+                const randomise = (seed) => {
+                    const pattern = [];
+                    const random = new Random(seed);
+                    for (let i = 0; i < 16; i++) {
+                        pattern[i] = {
+                            key: random.nextInt(13),
+                            transpose: random.nextInt(3) - 1,
+                            mode: random.nextInt(4) !== 1,
+                            slide: random.nextInt(7) === 1,
+                            accent: random.nextInt(2) === 1
+                        };
+                    }
+                    return pattern;
                 };
-            }
-            return pattern;
-        };
 
-        // seed: 764, 4563456, 98117, 9011, 907311
-        // 801139, 764, 572, 125968
-        const pattern = randomise(8723);
+                // seed: 764, 4563456, 98117, 9011, 907311
+                // 801139, 764, 572, 125968
+                const pattern = randomise(8723);
 
-        let lastSlide = false;
-        const sequencer = new Sequencer(() => context.currentTime * 1000.0);
+                let lastSlide = false;
+                const sequencer = new Sequencer(() => context.currentTime * 1000.0);
 
-        const getFrequency = (step) => midiToFrequency((step.transpose + 2 + tuning.value) * 12 + step.key, 440.0);
-        const frag303 = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
-            const step = pattern[stepIndex % pattern.length];
-            const s0 = computeStartMillis(position) / 1000.0;
-            const s1 = computeStartMillis(position + (complete - position) / 12.0 * (7.0 + delay.value * 4.5)) / 1000.0;
-            const s2 = computeStartMillis(complete) / 1000.0;
-            const ve = 0.5 + envMod.value * 0.2;
-            const va = step.accent ? ve + accent.value * (1.0 - ve) : ve;
-            const fm = step.accent ? cutoff.value * (0.7 + accent.value) : cutoff.value * 0.7;
-            const fr = step.accent ? resonance.value + accent.value * 2.0 : resonance.value;
-            const ff = fltFloor.y(1.0 - envMod.value);
-            flt0.Q.linearRampToValueAtTime(fr, s0);
-            flt1.Q.linearRampToValueAtTime(fr, s0);
-            if (step.mode) {
-                ampEnvelope.gain.linearRampToValueAtTime(va, s0 + 0.003);
-                ampEnvelope.gain.setTargetAtTime(0.0, s0 + 0.004, 0.2);
-                flt0.frequency.setValueAtTime(fm, s0);
-                flt1.frequency.setValueAtTime(fm, s0);
-                if (!step.slide) {
-                    ampEnvelope.gain.setTargetAtTime(0.0, s1, 0.001);
-                    flt0.frequency.exponentialRampToValueAtTime(ff, s2);
-                    flt1.frequency.exponentialRampToValueAtTime(ff, s2);
-                }
-                if (!lastSlide) {
-                    oscillator.frequency.setValueAtTime(getFrequency(step), s0);
-                }
-            }
-            if (lastSlide) {
-                if (!step.slide) {
-                    ampEnvelope.gain.setTargetAtTime(0.0, s1, 0.001);
-                    flt0.frequency.exponentialRampToValueAtTime(ff, s2);
-                    flt1.frequency.exponentialRampToValueAtTime(ff, s2);
-                }
-                oscillator.frequency.exponentialRampToValueAtTime(getFrequency(step), s2);
-            }
-            lastSlide = step.slide;
-        }, 1.0 / 16.0);
-        sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag303.equalise(computeStartMillis, stepIndex, position));
-        sequencer.bpm.value = BPM;
-
-        const fileNames = [
-            "./files/808/bassdrum.ogg",
-            "./files/808/snaredrum.ogg",
-            "./files/808/rim.ogg",
-            "./files/808/clave.ogg",
-            "./files/808/clap.ogg",
-            "./files/808/low-tom.ogg",
-            "./files/808/mid-tom.ogg",
-            "./files/808/high-tom.ogg",
-            "./files/808/closed-hat.ogg",
-            "./files/808/open-hat.ogg",
-            "./files/808/cymbal.ogg",
-            "./files/808/cowbell.ogg",
-        ];
-
-        const p808 = [
-            [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-            [],
-            [],
-            [],
-            [0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-        ];
-
-        Promise.all(fileNames.map(fileName => readAudio(context, fileName)))
-            .then(buffers => {
-                const m808 = context.createGain();
-                m808.gain.value = dbToGain(-3.0);
-                m808.connect(context.destination);
-                const frag808 = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
-                    const time = computeStartMillis(position) / 1000.0;
-                    for (let i = 0; i < p808.length; i++) {
-                        const line = p808[i];
-                        if (0 === line.length) {
-                            continue;
+                const getFrequency = (step) => midiToFrequency((step.transpose + 2 + tuning.value) * 12 + step.key, 440.0);
+                const frag303 = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
+                    const step = pattern[stepIndex % pattern.length];
+                    const s0 = computeStartMillis(position) / 1000.0;
+                    const s1 = computeStartMillis(position + (complete - position) / 12.0 * (7.0 + delay.value * 4.5)) / 1000.0;
+                    const s2 = computeStartMillis(complete) / 1000.0;
+                    const ve = 0.5 + envMod.value * 0.2;
+                    const va = step.accent ? ve + accent.value * (1.0 - ve) : ve;
+                    const fm = step.accent ? cutoff.value * (0.7 + accent.value) : cutoff.value * 0.7;
+                    const fr = step.accent ? resonance.value + accent.value * 2.0 : resonance.value;
+                    const ff = fltFloor.y(1.0 - envMod.value);
+                    flt0.Q.linearRampToValueAtTime(fr, s0);
+                    flt1.Q.linearRampToValueAtTime(fr, s0);
+                    if (step.mode) {
+                        ampEnvelope.gain.linearRampToValueAtTime(va, s0 + 0.003);
+                        ampEnvelope.gain.setTargetAtTime(0.0, s0 + 0.004, 0.2);
+                        flt0.frequency.setValueAtTime(fm, s0);
+                        flt1.frequency.setValueAtTime(fm, s0);
+                        if (!step.slide) {
+                            ampEnvelope.gain.setTargetAtTime(0.0, s1, 0.001);
+                            flt0.frequency.exponentialRampToValueAtTime(ff, s2);
+                            flt1.frequency.exponentialRampToValueAtTime(ff, s2);
                         }
-                        if (line[stepIndex % line.length] !== 0) {
-                            const source = context.createBufferSource();
-                            source.buffer = buffers[i];
-                            source.start(time);
-                            source.connect(m808);
+                        if (!lastSlide) {
+                            oscillator.frequency.setValueAtTime(getFrequency(step), s0);
                         }
                     }
+                    if (lastSlide) {
+                        if (!step.slide) {
+                            ampEnvelope.gain.setTargetAtTime(0.0, s1, 0.001);
+                            flt0.frequency.exponentialRampToValueAtTime(ff, s2);
+                            flt1.frequency.exponentialRampToValueAtTime(ff, s2);
+                        }
+                        oscillator.frequency.exponentialRampToValueAtTime(getFrequency(step), s2);
+                    }
+                    lastSlide = step.slide;
                 }, 1.0 / 16.0);
-                sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag808.equalise(computeStartMillis, stepIndex, position));
-            });
+                sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag303.equalise(computeStartMillis, stepIndex, position));
+                sequencer.bpm.value = BPM;
 
-        const element = document.querySelector("div#controls");
-        element.appendChild(new ParameterKnob(tuning).domElement);
-        element.appendChild(new ParameterKnob(cutoff).domElement);
-        element.appendChild(new ParameterKnob(resonance).domElement);
-        element.appendChild(new ParameterKnob(envMod).domElement);
-        element.appendChild(new ParameterKnob(delay).domElement);
-        element.appendChild(new ParameterKnob(accent).domElement);
-        document.querySelector("input#play").onchange = event => sequencer.playMode(event.target.checked);
-        const parameters = [tuning, cutoff, resonance, envMod, delay, accent];
+                const fileNames = [
+                    "./files/808/bassdrum.ogg",
+                    "./files/808/snaredrum.ogg",
+                    "./files/808/rim.ogg",
+                    "./files/808/clave.ogg",
+                    "./files/808/clap.ogg",
+                    "./files/808/low-tom.ogg",
+                    "./files/808/mid-tom.ogg",
+                    "./files/808/high-tom.ogg",
+                    "./files/808/closed-hat.ogg",
+                    "./files/808/open-hat.ogg",
+                    "./files/808/cymbal.ogg",
+                    "./files/808/cowbell.ogg",
+                ];
 
-        Midi.request()
-            .then(midi => {
-                const events = Midi.mapAllEvents(midi);
-                events.onController = (id, unipolar) => {
-                    const parameter = parameters[id - 1];
-                    if (parameter) {
-                        parameter.unipolar = unipolar;
-                    }
-                };
+                const p808 = [
+                    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                    [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+                    [],
+                    [],
+                    [],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+                ];
+
+                Promise.all(fileNames.map(fileName => readAudio(context, fileName)))
+                    .then(buffers => {
+                        const m808 = context.createGain();
+                        m808.gain.value = dbToGain(0.0);
+                        m808.connect(context.destination);
+                        const frag808 = new Fragmentation((computeStartMillis, stepIndex, position, complete) => {
+                            const time = computeStartMillis(position) / 1000.0;
+                            for (let i = 0; i < p808.length; i++) {
+                                const line = p808[i];
+                                if (0 === line.length) {
+                                    continue;
+                                }
+                                if (line[stepIndex % line.length] !== 0) {
+                                    const source = context.createBufferSource();
+                                    source.buffer = buffers[i];
+                                    source.start(time);
+                                    source.connect(m808);
+                                }
+                            }
+                        }, 1.0 / 16.0);
+                        sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag808.equalise(computeStartMillis, stepIndex, position));
+                    });
+
+                const element = document.querySelector("div#controls");
+                element.appendChild(new ParameterKnob(tuning).domElement);
+                element.appendChild(new ParameterKnob(cutoff).domElement);
+                element.appendChild(new ParameterKnob(resonance).domElement);
+                element.appendChild(new ParameterKnob(envMod).domElement);
+                element.appendChild(new ParameterKnob(delay).domElement);
+                element.appendChild(new ParameterKnob(accent).domElement);
+                document.querySelector("input#play").onchange = event => sequencer.playMode(event.target.checked);
+                const parameters = [tuning, cutoff, resonance, envMod, delay, accent];
+
+                Midi.request()
+                    .then(midi => {
+                        const events = Midi.mapAllEvents(midi);
+                        events.onController = (id, unipolar) => {
+                            const parameter = parameters[id - 1];
+                            if (parameter) {
+                                parameter.unipolar = unipolar;
+                            }
+                        };
+                    });
             });
     </script>
 </head>

@@ -58,17 +58,17 @@
         const sequencer = new Sequencer(() => context.currentTime * 1000.0);
         const effectBusAIn = context.createGain();
         const effectBusAOut = context.createGain();
-        effectBusAOut.gain.value = 0.7;
+        effectBusAOut.gain.value = 0.9;
         effectBusAOut.connect(context.destination);
         const effectBusBIn = context.createGain();
         const effectBusBOut = context.createGain();
-        effectBusBOut.gain.value = 0.7;
+        effectBusBOut.gain.value = 0.9;
         effectBusBOut.connect(context.destination);
         const sq = barsToSeconds(1.0 / 16.0, BPM);
         const qa = barsToSeconds(2.0 / 16.0, BPM);
         const s3 = barsToSeconds(3.0 / 16.0, BPM);
         const s5 = barsToSeconds(4.0 / 16.0, BPM);
-        pulsarDelay(context, effectBusAIn, effectBusAOut, sq, qa, s3, 0.98, 4000.0, 600.0);
+        pulsarDelay(context, effectBusAIn, effectBusAOut, sq, qa, s3, 1.0, 8000.0, 2000.0);
         pulsarDelay(context, effectBusBIn, effectBusBOut, sq, qa, s5 + 0.002, 0.99, 8000.0, 2000.0);
         Promise.all(samples.map(sample => readAudio(context, sample.url)))
             .then(buffers => {
