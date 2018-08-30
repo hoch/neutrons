@@ -101,7 +101,7 @@ export class VocoderSpectrum {
         this.root.style.borderRadius = "1px";
         this.root.style.position = "relative";
         this.root.style.boxSizing = "border-box";
-        this.root.style.margin = "1px 0"
+        this.root.style.margin = "1px 0";
 
         this.labelCanvas = document.createElement("canvas");
         this.labelCanvas.style.position = "absolute";
@@ -180,7 +180,7 @@ export class VocoderSpectrum {
         context.font = "14px Open sans";
         context.textBaseline = "top";
         context.textAlign = "center";
-        context.fillText("VOCODER SPECTRUM", width * 0.5, 6.0);
+        context.fillText("VOCODER TRANSFORM", width * 0.5, 6.0);
         context.fillStyle = "#777";
         context.font = "8px Open sans";
         for (let hz of Analyser.DIVIDERS) {
