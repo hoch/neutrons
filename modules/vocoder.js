@@ -1,6 +1,6 @@
 import {Analyser} from "./analyser.js";
 import {EnvelopeFollower} from "../worklets/EnvelopeFollower.js";
-import {Linear, Exp, NoFloat} from "./mapping.js";
+import {Exp, NoFloat, Percent} from "./mapping.js";
 import {ParameterBuilder} from "./parameter.js";
 import {gainToDb} from "./neutrons.js";
 import {hsla} from "./standard.js";
@@ -14,9 +14,10 @@ const createFilter = (context, frequency, Q) => {
 };
 
 class VocoderBand {
-    constructor(context, carrier, modulator, output, cFreq, mFreq, Q, gain) {
+    constructor(context, carrier, modulator, output, cFreq, mFreq, Q, gain, releaseTime) {
         this.context = context;
         this.envelopeFollower = new EnvelopeFollower(context);
+        this.envelopeFollower.release = releaseTime;
         this.levelNode = context.createGain();
         this.levelNode.gain.value = 0.0;
         this.gainNode = context.createGain();
@@ -34,13 +35,14 @@ class VocoderBand {
             .connect(this.levelNode.gain);
     }
 
-    update(cFreq, mFreq, Q, gain) {
+    update(cFreq, mFreq, Q, gain, releaseTime) {
         const endTime = this.context.currentTime + 0.005;
         this.carrierFilter.frequency.exponentialRampToValueAtTime(cFreq, endTime);
         this.carrierFilter.Q.exponentialRampToValueAtTime(Q, endTime);
         this.modulatorFilter.frequency.exponentialRampToValueAtTime(mFreq, endTime);
         this.modulatorFilter.Q.exponentialRampToValueAtTime(Q, endTime);
         this.gainNode.gain.linearRampToValueAtTime(gain, endTime);
+        this.envelopeFollower.release = releaseTime;
     }
 }
 
@@ -61,7 +63,6 @@ export class Vocoder {
         this.carrierFrequencies = new Float32Array(numBands);
         this.modulatorFrequencies = new Float32Array(numBands);
         this.Qs = new Float32Array(numBands);
-
         this.freqMapping = new Exp(20.0, 20000.0);
 
         this.onChanged = () => {
@@ -79,18 +80,33 @@ export class Vocoder {
             .printMapping(NoFloat)
             .unit("Hz")
             .callback(onParameterChanged);
-
         this.carrierMinFreq = freqBuilder("Carrier Min Hz").value(60.0).create();
         this.carrierMaxFreq = freqBuilder("Carrier Max Hz").value(7000.0).create();
         this.modulatorMinFreq = freqBuilder("Mod. Min Hz").value(60.0).create();
         this.modulatorMaxFreq = freqBuilder("Mod. Max Hz").value(7000.0).create();
+        this.qScale = ParameterBuilder
+            .begin("Q Scale")
+            .valueMapping(new Exp(1.0, 40.0))
+            .printMapping(Percent)
+            .value(20.0)
+            .unit("%")
+            .callback(onParameterChanged)
+            .create();
+        this.envRelease = ParameterBuilder
+            .begin("Env Release")
+            .valueMapping(new Exp(10.0, 1000.0))
+            .printMapping(NoFloat)
+            .value(30.0)
+            .unit("ms")
+            .callback(onParameterChanged)
+            .create();
 
         this.updateTransform();
         this.bands = this.initBands(numBands);
     }
 
     updateTransform() {
-        const qMap = new Exp(20.0, 1.0);
+        const qMap = new Exp(1.0, this.qScale.value);
 
         const carrierMinFreq = this.carrierMinFreq.value;
         const carrierMaxFreq = this.carrierMaxFreq.value;
@@ -102,7 +118,7 @@ export class Vocoder {
             const x = i / (this.numBands - 1);
             this.carrierFrequencies[i] = carrierMinFreq * Math.exp(x * carrierLogFreq);
             this.modulatorFrequencies[i] = modulatorMinFreq * Math.exp(x * modulatorLogFreq);
-            this.Qs[i] = qMap.y(x);
+            this.Qs[i] = qMap.y(1.0 - x);
         }
     }
 
@@ -115,7 +131,8 @@ export class Vocoder {
                 this.carrierFrequencies[i],
                 this.modulatorFrequencies[i],
                 this.Qs[i],
-                120.0
+                120.0,
+                this.envRelease.value / 1000.0
             );
         }
         return bands;
@@ -128,7 +145,9 @@ export class Vocoder {
                 this.carrierFrequencies[i],
                 this.modulatorFrequencies[i],
                 this.Qs[i],
-                120.0)
+                120.0,
+                this.envRelease.value / 1000.0
+            );
         }
         return bands;
     }
