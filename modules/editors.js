@@ -98,8 +98,8 @@ export class ParameterKnob {
         this.svg.style.margin = "2px";
         this.background = createBackground(ParameterKnob.WIDTH, ParameterKnob.HEIGHT);
         this.background.style.visibility = "hidden";
-        this.name = SVG.text(ParameterKnob.CIRCLE_X, 10, parameter.name, ParameterKnob.FONT_STYLE);
-        this.print = SVG.text(ParameterKnob.CIRCLE_X, ParameterKnob.HEIGHT - 6, "708 Hz", ParameterKnob.FONT_STYLE);
+        this.name = SVG.text(ParameterKnob.CIRCLE_X, 11, parameter.name, ParameterKnob.FONT_STYLE);
+        this.print = SVG.text(ParameterKnob.CIRCLE_X, ParameterKnob.HEIGHT - 6, "Val Unit", ParameterKnob.FONT_STYLE);
         this.svg.appendChild(this.background);
         this.svg.appendChild(this.name);
         this.svg.appendChild(this.print);

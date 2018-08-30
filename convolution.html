@@ -18,10 +18,10 @@
         ]).then(inputs => {
             const input = inputs[0];
             const impulse = inputs[1];
-            console.log("input duration", input.duration);
-            console.log("impulse duration", impulse.duration);
             const nInp = input.length;
             const nImp = impulse.length;
+            console.log("input duration", input.duration, "length", nInp);
+            console.log("impulse duration", impulse.duration, "length", nImp);
             const n = nextPow2(nInp + nImp);
             const inpReal = new Float32Array(n);
             const inpImag = new Float32Array(n);
@@ -33,24 +33,33 @@
             fft.process(impReal, impImag);
             const real = new Float32Array(n);
             const imag = new Float32Array(n);
-            //-- runtime > 0.7ms each block
-            const now = performance.now();
-            fft.process(inpReal, inpImag);
-            const max = Math.max(nInp, nImp); // rest is zero anyway
-            for (let i = 0; i < max; i++) {
-                const inpR = inpReal[i];
-                const inpI = inpImag[i];
-                const impR = impReal[i];
-                const impI = impImag[i];
-                real[i] = inpR * impR - inpI * impI;
-                imag[i] = inpR * impI + inpI * impR;
-            }
-            fft.process(imag, real);
-            normalise(real);
-            const elapsed = performance.now() - now;
-            const numBlocks = Math.floor(nInp / 128);
-            console.log(elapsed.toFixed(1), "ms", "numBlocks(x128)", numBlocks, "estimate", elapsed / numBlocks);
-            //-- <<
+            //-- runtime > ~0.56ms each block(128)
+            const convolve = () => {
+                const now = performance.now();
+                const max = Math.max(nInp, nImp); // rest is zero anyway
+                const m = Math.min(max, n / 2) | 0;
+                real.fill(0.0);
+                imag.fill(0.0);
+                fft.process(inpReal, inpImag);
+                for (let i = 0 | 0; i < m; i++) {
+                    const inpR = inpReal[i];
+                    const inpI = inpImag[i];
+                    const impR = impReal[i];
+                    const impI = impImag[i];
+                    real[i] = inpR * impR - inpI * impI;
+                    imag[i] = inpR * impI + inpI * impR;
+                }
+                fft.process(imag, real);
+                // normalise(real);
+                for (let i = 0; i < n; i++) {
+                    real[i] /= n * 4;
+                }
+                const elapsed = performance.now() - now;
+                const numBlocks = Math.floor(nInp / 128);
+                console.log(elapsed.toFixed(1), "ms", "numBlocks", numBlocks, "estimates to", (elapsed / numBlocks).toFixed(3));
+                // window.requestAnimationFrame(convolve);
+            };
+            convolve();
 
             const buffer = context.createBuffer(1, n, input.sampleRate);
             buffer.copyToChannel(real, 0, 0);

@@ -11,6 +11,8 @@
         import {fetchMicrophone, readAudio, replaceElement} from "./modules/standard.js";
         import {PlotterCanvas} from "./modules/plotter.js";
         import {dbToGain} from "./modules/neutrons.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {ParameterKnob} from "./modules/editors.js";
 
         const fileNames = [
             "Church",
@@ -38,14 +40,21 @@
             return element;
         };
 
+        const wetSignal = context.createGain();
+        wetSignal.gain.value = 0.5;
+
+        const wetLevel = ParameterBuilder.begin("Wet Level")
+            .value(wetSignal.gain.value)
+            .callback(p => wetSignal.gain
+                .linearRampToValueAtTime(p.value, context.currentTime + 0.050))
+            .create();
+
         const location = "files/impulse/spaces/";
         const fileExtension = ".ogg";
         Promise.all(fileNames.map(fileName => readAudio(context, location + fileName + fileExtension)))
             .then(impulses => {
                 fetchMicrophone()
                     .then(stream => {
-                        const wetSignal = context.createGain();
-                        wetSignal.gain.value = 0.5;
                         const sourceNode = context.createMediaStreamSource(stream);
                         sourceNode
                             .connect(wetSignal)
@@ -56,7 +65,6 @@
                     });
 
                 const selectImpulse = (index) => {
-                    console.log("selectImpulse", index);
                     const buffer = impulses[index];
                     plotterL.setWaveform(buffer.getChannelData(0));
                     plotterR.setWaveform(buffer.getChannelData(1));
@@ -116,6 +124,7 @@
                 });
                 replaceElement(plotterL.domElement, document.querySelector("div#waveform-l"));
                 replaceElement(plotterR.domElement, document.querySelector("div#waveform-r"));
+                replaceElement(new ParameterKnob(wetLevel).domElement, document.querySelector("div#wet-level"));
 
                 const run = () => {
                     if (null !== source && null !== source.buffer) {
@@ -140,9 +149,12 @@
         <div class="waveform" id="waveform-l"></div>
         <div class="waveform" id="waveform-r"></div>
     </div>
-    <div style="position: absolute; top: 8px; left: 8px;">
-        <input type="checkbox" id="enabled">
-        <label for="enabled">Enabled</label>
+    <div style="position: absolute; top: 8px; left: 8px; display: flex;">
+        <div>
+            <input type="checkbox" id="enabled">
+            <label for="enabled">Enabled</label>
+        </div>
+        <div id="wet-level"></div>
     </div>
 </article>
 <footer></footer>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vocoder</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="slides.js" type="module"></script>
+    <script type="module">
+        import {Policy} from "./modules/policy.js";
+        import {fetchMicrophone, readAudio, replaceElement} from "./modules/standard.js";
+        import {PadSynth, PadWorker} from "./worklets/PadSynth.js";
+        import {EnvelopeFollower} from "./worklets/EnvelopeFollower.js";
+        import {Midi} from "./modules/sequencing.js";
+        import {Analyser} from "./modules/analyser.js";
+        import {Chord} from "./modules/chord.js";
+        import {Exp} from "./modules/mapping.js";
+
+        const context = Policy.newAudioContext();
+
+        Promise.all([
+            fetchMicrophone(),
+            readAudio(context, "files/test-tones/whitenoisegaussian.wav"),
+            context.audioWorklet.addModule("./worklets/PadSynthProcessor.js"),
+            context.audioWorklet.addModule("./worklets/EnvelopeFollowerProcessor.js")
+        ]).then(results => {
+            const stream = results[0];
+            const synth = new PadSynth(context, new PadWorker(16, context.sampleRate, 60.0));
+            const micro = context.createMediaStreamSource(stream);
+
+            const microAnalyser = new Analyser(context, true);
+            micro.connect(microAnalyser.node);
+
+            const output = context.createGain();
+
+            const outputAnalyser = new Analyser(context, true);
+            output.connect(outputAnalyser.node).connect(context.destination);
+
+            const createBandPassFilter = (frequency, Q) => {
+                const filter = context.createBiquadFilter();
+                filter.type = "bandpass";
+                filter.frequency.value = frequency;
+                filter.Q.value = Q;
+                return filter;
+            };
+            const bandPassChain = (frequency, Q) => {
+                const envelopeFollower = new EnvelopeFollower(context);
+                const gainNode = context.createGain();
+                gainNode.gain.value = 0.0;
+                const ampNode = context.createGain();
+                ampNode.gain.value = 120.0;
+                const levelFilter = createBandPassFilter(frequency, Q);
+                const outputFilter = createBandPassFilter(frequency, Q);
+                micro
+                    .connect(levelFilter)
+                    .connect(envelopeFollower)
+                    .connect(gainNode.gain);
+
+                synth.connect(outputFilter).connect(gainNode).connect(ampNode).connect(output);
+            };
+
+            // synth.connect(context.destination);
+
+            const fMap = new Exp(60.0, 8000.0);
+            const qMap = new Exp(20.0, 1.0);
+
+            const numBands = 10;
+            for (let i = 0; i < numBands; i++) {
+                const x = i / (numBands - 1);
+                const frequency = fMap.y(x);
+                const Q = qMap.y(x);
+                console.log(frequency, Q);
+                bandPassChain(frequency, Q);
+            }
+
+            Midi.request().then(midi => {
+                const events = Midi.mapAllEvents(midi);
+                events.onNoteOn = (note, velocity) => synth.noteOn(note, 1.0);
+                events.onNoteOff = (note) => synth.noteOff(note);
+            });
+
+            if( false ) {
+                setTimeout(() => {
+                    for (let note of Chord.compose(Chord.Major, 0, 0, 7)) {
+                        synth.noteOn(48 + note, 1.0);
+                    }
+                }, 500);
+            }
+
+            replaceElement(microAnalyser.domElement, document.querySelector("div#micro-spectrum"));
+            replaceElement(outputAnalyser.domElement, document.querySelector("div#output-spectrum"));
+        });
+    </script>
+</head>
+<body>
+<header>
+    <h1>Klangwerk</h1>
+    <h2>Vocoder</h2>
+</header>
+<article class="center">
+    <div>
+        <div id="micro-spectrum"></div>
+        <div id="output-spectrum"></div>
+    </div>
+</article>
+<footer></footer>
+</body>
+</html>

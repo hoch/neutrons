@@ -11,6 +11,7 @@
             .then(x => {
                 const list = document.querySelector("ul#media-devices");
                 x.forEach((info, index, devices) => {
+                    console.log(info);
                     const label = info.label;
                     if (label !== "") {
                         const item = document.createElement("li");
