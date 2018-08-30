@@ -7,7 +7,7 @@
     <script src="slides.js" type="module"></script>
     <script type="module">
         import {Policy} from "./modules/policy.js";
-        import {fetchMicrophone, readAudio, replaceElement} from "./modules/standard.js";
+        import {fetchMicrophone, readAudio, replaceElement, createRadioGroup} from "./modules/standard.js";
         import {PadSynth, PadWorker} from "./worklets/PadSynth.js";
         import {Midi} from "./modules/sequencing.js";
         import {Analyser} from "./modules/analyser.js";
@@ -21,35 +21,77 @@
         Promise.all([
             fetchMicrophone(),
             Vocoder.request(context, 10),
+            readAudio(context, "files/trump.ogg"),
+            readAudio(context, "files/loops/neurofunk.ogg"),
             context.audioWorklet.addModule("./worklets/LimiterProcessor.js"),
             context.audioWorklet.addModule("./worklets/PadSynthProcessor.js")
         ]).then(results => {
             const stream = results[0];
             const vocoder = results[1];
+            const speech = results[2];
+            const loop = results[3];
             const synth = new PadSynth(context, new PadWorker(16, context.sampleRate, 60.0));
             const micro = context.createMediaStreamSource(stream);
             const limiter = new Limiter(context);
 
             const modulatorAnalyser = new Analyser(context, true);
             modulatorAnalyser.setHeader("MODULATOR SPECTRUM");
-            micro.connect(modulatorAnalyser.node);
 
             const carrierAnalyser = new Analyser(context, true);
             carrierAnalyser.setHeader("CARRIER SPECTRUM");
-            synth.connect(carrierAnalyser.node);
 
             const outputAnalyser = new Analyser(context, true);
             outputAnalyser.setHeader("OUTPUT SPECTRUM");
             vocoder.output.connect(limiter).connect(outputAnalyser.node).connect(context.destination);
 
-            synth.connect(vocoder.carrier);
-            micro.connect(vocoder.modulator);
+            const input = context.createGain();
+            synth.connect(carrierAnalyser.node).connect(vocoder.carrier);
+            input.connect(modulatorAnalyser.node).connect(vocoder.modulator);
 
             Midi.request().then(midi => {
                 const events = Midi.mapAllEvents(midi);
                 events.onNoteOn = (note, velocity) => synth.noteOn(note, velocity);
                 events.onNoteOff = (note) => synth.noteOff(note);
             });
+
+            const formInput = document.querySelector("form#modulator-input");
+            const groupInputs = createRadioGroup(formInput);
+            groupInputs(true, "Microphone", 0);
+            groupInputs(false, "Donald", 1);
+            groupInputs(false, "Drum-loop", 2);
+            micro.connect(input);
+            let lastInput = micro;
+            formInput.onchange = event => {
+                if (null !== lastInput) {
+                    lastInput.disconnect();
+                    lastInput = null;
+                }
+                const mode = parseInt(event.target.value, 10);
+                switch (mode) {
+                    case 0: {
+                        micro.connect(input);
+                        lastInput = micro;
+                        break;
+                    }
+                    case 1: {
+                        const source = context.createBufferSource();
+                        source.buffer = speech;
+                        source.start();
+                        source.connect(input);
+                        lastInput = source;
+                        break;
+                    }
+                    case 2: {
+                        const source = context.createBufferSource();
+                        source.buffer = loop;
+                        source.loop = true;
+                        source.start();
+                        source.connect(input);
+                        lastInput = source;
+                        break;
+                    }
+                }
+            };
 
             replaceElement(modulatorAnalyser.domElement, document.querySelector("div#modulator-spectrum"));
             replaceElement(carrierAnalyser.domElement, document.querySelector("div#carrier-spectrum"));
@@ -61,6 +103,37 @@
             replaceElement(new ParameterKnob(vocoder.qScale).domElement, document.querySelector("div#q-scale"));
             replaceElement(new ParameterKnob(vocoder.envRelease).domElement, document.querySelector("div#env-release"));
             replaceElement(outputAnalyser.domElement, document.querySelector("div#output-spectrum"));
+            document.querySelector("button#reset").onclick = ignore => vocoder.reset();
+
+            const active = {};
+            window.addEventListener("keydown", event => {
+                if (event.repeat || event.shift || event.altKey || event.ctrlKey || event.metaKey) {
+                    return;
+                }
+                const rootKey = 0;
+                const numNotes = 5;
+
+                const variation = event.keyCode - 49;
+                if (0 <= variation && variation < 9) {
+                    const chord = Chord.compose(Chord.Minor, rootKey + 12 * 4, variation, numNotes);
+                    for (let j = 0; j < chord.length; j++) {
+                        const note = chord[j];
+                        synth.noteOn(note, 1.0);
+                    }
+                    active[variation] = chord;
+                }
+            });
+            window.addEventListener("keyup", event => {
+                const variation = event.keyCode - 49;
+                const chord = active[variation];
+                if (undefined !== chord) {
+                    for (let j = 0; j < chord.length; j++) {
+                        const note = chord[j];
+                        synth.noteOff(note);
+                    }
+                    delete active[variation];
+                }
+            });
         });
     </script>
 </head>
@@ -72,6 +145,7 @@
 <article class="center">
     <div style="display: flex; align-items: center; width: 100%; justify-content: space-around;">
         <div style="display: flex; flex-direction: column; height: 576px; justify-content: space-between;">
+            <form id="modulator-input"></form>
             <div id="modulator-spectrum"></div>
             <div id="carrier-spectrum"></div>
         </div>
@@ -84,6 +158,9 @@
                 <div id="carrier-max-freq"></div>
                 <div id="q-scale"></div>
                 <div id="env-release"></div>
+            </div>
+            <div style="display: flex; width: 100%; justify-content: flex-end; margin-top: 8px;">
+                <button id="reset">reset</button>
             </div>
         </div>
         <div id="output-spectrum"></div>

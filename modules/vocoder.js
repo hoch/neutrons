@@ -86,7 +86,7 @@ export class Vocoder {
         this.modulatorMaxFreq = freqBuilder("Mod. Max Hz").value(7000.0).create();
         this.qScale = ParameterBuilder
             .begin("Q Scale")
-            .valueMapping(new Exp(1.0, 40.0))
+            .valueMapping(new Exp(1.0, 60.0))
             .printMapping(Percent)
             .value(20.0)
             .unit("%")
@@ -105,9 +105,17 @@ export class Vocoder {
         this.bands = this.initBands(numBands);
     }
 
-    updateTransform() {
-        const qMap = new Exp(1.0, this.qScale.value);
+    reset() {
+        this.carrierMinFreq.reset();
+        this.carrierMaxFreq.reset();
+        this.modulatorMinFreq.reset();
+        this.modulatorMaxFreq.reset();
+        this.qScale.reset();
+        this.envRelease.reset();
+    }
 
+    updateTransform() {
+        const qMap = new Exp(2.0, this.qScale.value);
         const carrierMinFreq = this.carrierMinFreq.value;
         const carrierMaxFreq = this.carrierMaxFreq.value;
         const carrierLogFreq = Math.log(carrierMaxFreq / carrierMinFreq);
@@ -273,6 +281,7 @@ export class VocoderSpectrum {
         const graphics = this.plotterContext;
         const width = canvas.width;
         const height = canvas.height;
+        const pixelRatio = devicePixelRatio;
         const bands = this.vocoder.bands;
         const freqMapping = this.vocoder.freqMapping;
         const numBands = bands.length;
@@ -332,8 +341,8 @@ export class VocoderSpectrum {
             const modulator = bands[i].modulatorFilter;
             const cx = freqMapping.x(carrier.frequency.value) * width;
             const mx = freqMapping.x(modulator.frequency.value) * width;
-            graphics.moveTo(mx, 64);
-            graphics.lineTo(cx, 96);
+            graphics.moveTo(mx, 64 * pixelRatio);
+            graphics.lineTo(cx, height - 64 * pixelRatio);
             graphics.stroke();
         }
         graphics.setLineDash([]);

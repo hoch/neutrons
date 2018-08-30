@@ -54,7 +54,7 @@
 
         const context = Policy.newAudioContext();
         context.audioWorklet.addModule("./worklets/LimiterProcessor.js")
-            .then(()=>{
+            .then(() => {
                 const out303 = context.createGain();
                 out303.gain.value = dbToGain(-12.0);
                 out303.connect(new Limiter(context)).connect(context.destination);
@@ -192,7 +192,8 @@
                                 }
                             }
                         }, 1.0 / 16.0);
-                        sequencer.addProcessor((computeStartMillis, stepIndex, position) => frag808.equalise(computeStartMillis, stepIndex, position));
+                        sequencer.addProcessor((computeStartMillis, stepIndex, position) =>
+                            frag808.equalise(computeStartMillis, stepIndex, position));
                     });
 
                 const element = document.querySelector("div#controls");
