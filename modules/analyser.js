@@ -40,6 +40,7 @@ export class Analyser {
         this.devicePixelRatio = NaN;
         this.values = new Float32Array(1024);
         this.spectrumMode = spectrumMode;
+        this.$headerText = "SPECTRUM";
 
         this.overlayCallback = (canvas, graphics) => {};
 
@@ -52,6 +53,13 @@ export class Analyser {
         }
         this.spectrumMode = value;
         this.drawLabels();
+    }
+
+    setHeader(text) {
+        this.$headerText = text;
+        this.width = NaN;
+        this.height = NaN;
+        this.devicePixelRatio = NaN;
     }
 
     drawLabels() {
@@ -89,7 +97,7 @@ export class Analyser {
             context.font = "14px Open sans";
             context.textBaseline = "top";
             context.textAlign = "center";
-            context.fillText("SPECTRUM", width * 0.5, 6.0);
+            context.fillText(this.$headerText, width * 0.5, 6.0);
             context.font = "8px Open sans";
             for (let hz of Analyser.DIVIDERS) {
                 const x = this.freqMapping.x(hz) * (width - 64);

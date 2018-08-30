@@ -12,6 +12,7 @@
         import {Midi} from "./modules/sequencing.js";
         import {Analyser} from "./modules/analyser.js";
         import {Chord} from "./modules/chord.js";
+        import {ParameterKnob} from "./modules/editors.js";
         import {Vocoder, VocoderSpectrum} from "./modules/vocoder.js";
 
         const context = Policy.newAudioContext();
@@ -26,10 +27,16 @@
             const synth = new PadSynth(context, new PadWorker(16, context.sampleRate, 60.0));
             const micro = context.createMediaStreamSource(stream);
 
-            const microAnalyser = new Analyser(context, true);
-            micro.connect(microAnalyser.node);
+            const modulatorAnalyser = new Analyser(context, true);
+            modulatorAnalyser.setHeader("MODULATOR SPECTRUM");
+            micro.connect(modulatorAnalyser.node);
+
+            const carrierAnalyser = new Analyser(context, true);
+            carrierAnalyser.setHeader("CARRIER SPECTRUM");
+            synth.connect(carrierAnalyser.node);
 
             const outputAnalyser = new Analyser(context, true);
+            outputAnalyser.setHeader("OUTPUT SPECTRUM");
             vocoder.output.connect(outputAnalyser.node).connect(context.destination);
 
             synth.connect(vocoder.carrier);
@@ -41,8 +48,13 @@
                 events.onNoteOff = (note) => synth.noteOff(note);
             });
 
-            replaceElement(microAnalyser.domElement, document.querySelector("div#micro-spectrum"));
-            replaceElement(new VocoderSpectrum(vocoder).domElement, document.querySelector("div#vocoder-spectrum"));
+            replaceElement(modulatorAnalyser.domElement, document.querySelector("div#modulator-spectrum"));
+            replaceElement(carrierAnalyser.domElement, document.querySelector("div#carrier-spectrum"));
+            replaceElement(new VocoderSpectrum(vocoder).domElement, document.querySelector("div#transform"));
+            replaceElement(new ParameterKnob(vocoder.carrierMinFreq).domElement, document.querySelector("div#carrier-min-freq"));
+            replaceElement(new ParameterKnob(vocoder.carrierMaxFreq).domElement, document.querySelector("div#carrier-max-freq"));
+            replaceElement(new ParameterKnob(vocoder.modulatorMinFreq).domElement, document.querySelector("div#modulator-min-freq"));
+            replaceElement(new ParameterKnob(vocoder.modulatorMaxFreq).domElement, document.querySelector("div#modulator-max-freq"));
             replaceElement(outputAnalyser.domElement, document.querySelector("div#output-spectrum"));
         });
     </script>
@@ -53,9 +65,18 @@
     <h2>Vocoder</h2>
 </header>
 <article class="center">
-    <div>
-        <div id="micro-spectrum"></div>
-        <div id="vocoder-spectrum"></div>
+    <div style="display: flex; align-items: center; width: 100%; justify-content: space-around;">
+        <div style="display: flex; flex-direction: column; height: 576px; justify-content: space-between;">
+            <div id="modulator-spectrum"></div>
+            <div id="carrier-spectrum"></div>
+        </div>
+        <div>
+            <div id="transform"></div>
+            <div id="carrier-min-freq"></div>
+            <div id="carrier-max-freq"></div>
+            <div id="modulator-min-freq"></div>
+            <div id="modulator-max-freq"></div>
+        </div>
         <div id="output-spectrum"></div>
     </div>
 </article>

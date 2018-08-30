@@ -1,6 +1,7 @@
 import {Analyser} from "./analyser.js";
 import {EnvelopeFollower} from "../worklets/EnvelopeFollower.js";
-import {Linear, Exp} from "./mapping.js";
+import {Linear, Exp, NoFloat} from "./mapping.js";
+import {ParameterBuilder} from "./parameter.js";
 import {gainToDb} from "./neutrons.js";
 import {hsla} from "./standard.js";
 
@@ -14,23 +15,32 @@ const createFilter = (context, frequency, Q) => {
 
 class VocoderBand {
     constructor(context, carrier, modulator, output, cFreq, mFreq, Q, gain) {
+        this.context = context;
         this.envelopeFollower = new EnvelopeFollower(context);
         this.levelNode = context.createGain();
         this.levelNode.gain.value = 0.0;
         this.gainNode = context.createGain();
         this.gainNode.gain.value = gain;
-        this.modulatorFilter = createFilter(context, mFreq, Q);
         this.carrierFilter = createFilter(context, cFreq, Q);
-        modulator
-            .connect(this.modulatorFilter)
-            .connect(this.envelopeFollower)
-            .connect(this.levelNode.gain);
-
+        this.modulatorFilter = createFilter(context, mFreq, Q);
         carrier
             .connect(this.carrierFilter)
             .connect(this.levelNode)
             .connect(this.gainNode)
             .connect(output);
+        modulator
+            .connect(this.modulatorFilter)
+            .connect(this.envelopeFollower)
+            .connect(this.levelNode.gain);
+    }
+
+    update(cFreq, mFreq, Q, gain) {
+        const endTime = this.context.currentTime + 0.005;
+        this.carrierFilter.frequency.exponentialRampToValueAtTime(cFreq, endTime);
+        this.carrierFilter.Q.exponentialRampToValueAtTime(Q, endTime);
+        this.modulatorFilter.frequency.exponentialRampToValueAtTime(mFreq, endTime);
+        this.modulatorFilter.Q.exponentialRampToValueAtTime(Q, endTime);
+        this.gainNode.gain.linearRampToValueAtTime(gain, endTime);
     }
 }
 
@@ -54,24 +64,46 @@ export class Vocoder {
 
         this.freqMapping = new Exp(20.0, 20000.0);
 
-        this.initSpectrum();
+        this.onChanged = () => {
+        };
 
+        const onParameterChanged = ignore => {
+            this.updateTransform();
+            this.updateBands();
+            this.onChanged();
+        };
+
+        const freqBuilder = (name) => ParameterBuilder
+            .begin(name)
+            .valueMapping(this.freqMapping)
+            .printMapping(NoFloat)
+            .unit("Hz")
+            .callback(onParameterChanged);
+
+        this.carrierMinFreq = freqBuilder("Carrier Min Hz").value(60.0).create();
+        this.carrierMaxFreq = freqBuilder("Carrier Max Hz").value(7000.0).create();
+        this.modulatorMinFreq = freqBuilder("Mod. Min Hz").value(60.0).create();
+        this.modulatorMaxFreq = freqBuilder("Mod. Max Hz").value(7000.0).create();
+
+        this.updateTransform();
         this.bands = this.initBands(numBands);
     }
 
-    initSpectrum() {
+    updateTransform() {
         const qMap = new Exp(20.0, 1.0);
 
+        const carrierMinFreq = this.carrierMinFreq.value;
+        const carrierMaxFreq = this.carrierMaxFreq.value;
+        const carrierLogFreq = Math.log(carrierMaxFreq / carrierMinFreq);
+        const modulatorMinFreq = this.modulatorMinFreq.value;
+        const modulatorMaxFreq = this.modulatorMaxFreq.value;
+        const modulatorLogFreq = Math.log(modulatorMaxFreq / modulatorMinFreq);
         for (let i = 0; i < this.numBands; i++) {
             const x = i / (this.numBands - 1);
-            this.carrierFrequencies[i] = this.freqMapping.y((x + 0.067) * 0.8) * 1.5;
-            this.modulatorFrequencies[i] = this.freqMapping.y((x + 0.067) * 0.8) * 1.0;
+            this.carrierFrequencies[i] = carrierMinFreq * Math.exp(x * carrierLogFreq);
+            this.modulatorFrequencies[i] = modulatorMinFreq * Math.exp(x * modulatorLogFreq);
             this.Qs[i] = qMap.y(x);
         }
-
-        console.log("carrierFrequencies", this.carrierFrequencies);
-        console.log("modulatorFrequencies", this.modulatorFrequencies);
-        console.log("Qs", this.Qs);
     }
 
     initBands(numBands) {
@@ -88,11 +120,24 @@ export class Vocoder {
         }
         return bands;
     }
+
+    updateBands() {
+        const bands = this.bands;
+        for (let i = 0; i < this.numBands; i++) {
+            bands[i].update(
+                this.carrierFrequencies[i],
+                this.modulatorFrequencies[i],
+                this.Qs[i],
+                120.0)
+        }
+        return bands;
+    }
 }
 
 export class VocoderSpectrum {
     constructor(vocoder) {
         this.vocoder = vocoder;
+        this.vocoder.onChanged = ignore => this.changed = true;
 
         this.root = document.createElement("div");
         this.root.style.width = "512px";
@@ -124,6 +169,7 @@ export class VocoderSpectrum {
         this.frequencyHz = null;
         this.magResponse = null;
         this.phaseResponse = null;
+        this.changed = true;
         this.start();
     }
 
@@ -147,7 +193,10 @@ export class VocoderSpectrum {
                 this.plotterCanvas.height = (this.root.clientHeight - 64) * devicePixelRatio;
                 this.drawLabels();
             }
-            this.update(); // TODO only on changes
+            if (this.changed) {
+                this.update();
+                this.changed = false;
+            }
             window.requestAnimationFrame(update);
         };
         window.requestAnimationFrame(update);
@@ -201,7 +250,6 @@ export class VocoderSpectrum {
     }
 
     update() {
-        const now = performance.now();
         const canvas = this.plotterCanvas;
         const graphics = this.plotterContext;
         const width = canvas.width;
