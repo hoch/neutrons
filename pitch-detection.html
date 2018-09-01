@@ -11,10 +11,12 @@
         import {fetchMicrophone, replaceElement} from "./modules/standard.js";
         import {midiToFrequency, goertzel, RMS, gainToDb} from "./modules/neutrons.js";
         import {PianoRoll} from "./modules/piano-roll.js";
+        import {ParameterBuilder} from "./modules/parameter.js";
+        import {Level, OneFloat} from "./modules/mapping.js";
+        import {ParameterKnob} from "./modules/editors.js";
 
         const context = Policy.newAudioContext();
         const pianoRoll = new PianoRoll(2);
-        replaceElement(pianoRoll.domElement, document.querySelector("div#piano-roll"));
         Promise.all([
             fetchMicrophone(),
             context.audioWorklet.addModule("worklets/BlockProcessor.js")
@@ -31,7 +33,13 @@
             const minNote = 48;
             const maxNote = 96;
             const numNotes = maxNote - minNote + 1;
-            const threshold = -18.0;
+            const threshold = ParameterBuilder
+                .begin("threshold")
+                .valueMapping(new Level(-48, -18, 0.0))
+                .printMapping(OneFloat)
+                .value(-18.0)
+                .unit("db")
+                .create();
             const windowSize = 4096;
             const values = new Float32Array(numNotes);
             const rms = new RMS(windowSize);
@@ -39,6 +47,12 @@
             let lastIndex = -1;
             console.log("minNote", midiToFrequency(minNote, 440.0), "hz");
             console.log("maxNote", midiToFrequency(maxNote, 440.0), "hz");
+            const oscEnabled = document.querySelector("input#osc");
+            oscEnabled.onchange = event => {
+                if(!event.target.checked) {
+                    gainNode.gain.linearRampToValueAtTime(0.0, context.currentTime + 0.010);
+                }
+            };
             block.port.onmessage = event => {
                 const signal = event.data;
                 let maxRms = 0.0;
@@ -61,20 +75,25 @@
                     lastIndex = -1;
                 }
                 const db = gainToDb(maxRms);
-                if (db > threshold && -1 < maxIndex) {
+                if (db > threshold.value && -1 < maxIndex) {
                     const note = minNote + maxIndex;
                     pianoRoll.press(note);
                     const upper = values[maxIndex + 1];
                     const lower = values[maxIndex - 1];
-                    console.log(upper - lower);
+                    // console.log(upper - lower);
                     osc.frequency.value = midiToFrequency(note, 440.0);
-                    gainNode.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.010);
+                    if (oscEnabled.checked) {
+                        gainNode.gain.linearRampToValueAtTime(1.0, context.currentTime + 0.010);
+                    }
                     lastIndex = maxIndex;
                 } else {
                     gainNode.gain.linearRampToValueAtTime(0.0, context.currentTime + 0.010);
                 }
             };
             microphone.connect(block).connect(context.destination);
+
+            replaceElement(pianoRoll.domElement, document.querySelector("div#piano-roll"));
+            replaceElement(new ParameterKnob(threshold).domElement, document.querySelector("div#threshold"));
         });
     </script>
 </head>
@@ -84,7 +103,16 @@
     <h2>Pitch Detection</h2>
 </header>
 <article class="center">
-    <div id="piano-roll"></div>
+    <div style="display: flex; flex-direction: column;">
+        <div id="piano-roll"></div>
+        <div style="display: flex;">
+            <div id="threshold"></div>
+            <div>
+                <input type="checkbox" id="osc">
+                <label for="osc">Osc</label>
+            </div>
+        </div>
+    </div>
 </article>
 <footer></footer>
 </body>

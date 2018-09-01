@@ -1,3 +1,2 @@
-+ pitch-detection > threshold knob & play osc button
 + uncaught exception > alert
 + clean up files
