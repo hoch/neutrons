@@ -1,5 +1,7 @@
 import {SVG} from "./modules/svg.js";
 
+window.onerror = x => alert(x);
+
 const get_next_slide = () => {
     const slides = [
         "index.html",
