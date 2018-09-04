@@ -24,7 +24,6 @@
             const limiter = new Limiter(context);
             const stereoMeter = new StereoMeter(context, 640);
             limiter.connect(stereoMeter).connect(context.destination);
-
             stereoMeter.attachToScreen();
 
             const splitter = context.createChannelSplitter(2);
@@ -64,7 +63,6 @@
                 pulsate.physics.run(stepTime, collision => {
                     if (collision instanceof CollisionPair) {
                         const startTime = computeStartMillis(position + collision.time) / 1000.0;
-                        console.log(startTime - context.currentTime);
                         const stopTime = startTime + 0.100;
                         const envelope = context.createGain();
                         envelope.gain.value = 1.0;

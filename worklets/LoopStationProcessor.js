@@ -17,11 +17,7 @@ registerProcessor("loop-station", class extends AbstractAudioWorkletProcessor {
         this.recordIndex = 0;
         this.recordShift = NaN;
 
-        this.bindParameter("record-shift",
-            ms => {
-                this.recordShift = Math.floor(ms / 128000.0 * sampleRate);
-                console.log(ms, this.recordShift);
-            });
+        this.bindParameter("record-shift", ms => this.recordShift = Math.floor(ms / 128000.0 * sampleRate));
     }
 
     processMessage(data) {
