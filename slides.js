@@ -60,9 +60,9 @@ const get_next_slide = () => {
     const path = document.location.href;
     const qIndex = path.lastIndexOf("?");
     const slide = path.substring(path.lastIndexOf("/") + 1, -1 === qIndex ? path.length : qIndex);
-    const slideIndex = slides.indexOf(slide);
+    const slideIndex = "" === slide ? 0 : slides.indexOf(slide);
     if (-1 === slideIndex) {
-        console.warn("Not indexed.");
+        console.warn("Not indexed. '" + slide + "'");
         return null;
     }
     if (slideIndex + 1 === slides.length) {

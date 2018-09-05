@@ -17,3 +17,7 @@ Includes
 * Values plotter
 * Policy utility to call for mandatory user-interaction (play audio, resume AudioContext)
 * All slides of my presentation at [Reasons.to 2018](https://reasons.to/2018/brighton/speakers/andre-michelle)
+
+Presentation
+* Cursor RIGHT is default advance key
+* Some slides do require an Akai MPK Mini midi-device
