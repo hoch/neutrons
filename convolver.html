@@ -26,7 +26,6 @@
             "PrimeLong",
         ];
         const context = Policy.newAudioContext();
-        const convolver = context.createConvolver();
         const master = context.createGain();
         master.gain.value = 0.0;
         master.connect(context.destination);
@@ -57,18 +56,23 @@
                     .then(stream => {
                         const sourceNode = context.createMediaStreamSource(stream);
                         sourceNode
-                            .connect(wetSignal)
-                            .connect(convolver)
-                            .connect(master);
+                            .connect(wetSignal);
                         sourceNode
                             .connect(master);
                     });
 
+                let convolver = null;
                 const selectImpulse = (index) => {
+                    if (null !== convolver) {
+                        convolver.buffer = null;
+                        convolver.disconnect();
+                    }
                     const buffer = impulses[index];
                     plotterL.setWaveform(buffer.getChannelData(0));
                     plotterR.setWaveform(buffer.getChannelData(1));
+                    convolver = context.createConvolver();
                     convolver.buffer = buffer;
+                    wetSignal.connect(convolver).connect(master);
                 };
                 let lastButton = null;
                 const selectList = document.querySelector("div#select");

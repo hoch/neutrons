@@ -45,7 +45,7 @@ export class LoopStation extends AudioWorkletNode {
             .valueMapping(new LinearInt(-100.0, 100.0))
             .printMapping(OneFloat)
             .unit("ms")
-            .value(70.0)
+            .value(65.5)
             .createShared(this.port, "record-shift");
     }
 
