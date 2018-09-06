@@ -21,3 +21,4 @@ Includes
 Presentation
 * Cursor RIGHT is default advance key
 * Some slides do require an Akai MPK Mini midi-device
+* [Online version](https://andremichelle.github.io/neutrons/)
