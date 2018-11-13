@@ -15,7 +15,7 @@
 
         const audio = new Audio();
         audio.setAttribute("crossorigin", "");
-        audio.src = "https://api.audiotool.com/track/geometric-oe3fic/play.ogg";
+        audio.src = "files/track/geometric.ogg";
         Policy.playAudio(audio).then(() => context.createMediaElementSource(audio).connect(gainNode));
 
         const analyserTimeDomain = new Analyser(context, false);
